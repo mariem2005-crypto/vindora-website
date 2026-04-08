@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vindora — Notifications</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue: #3B3BDB;
+      --blue-mid: #2A6DD9;
+      --teal: #00C9A7;
+      --grad: linear-gradient(135deg, #3B3BDB 0%, #00C9A7 100%);
+      --grad-soft: linear-gradient(135deg, rgba(59,59,219,0.07) 0%, rgba(0,201,167,0.07) 100%);
+      --white: #FFFFFF;
+      --bg: #F4F7FF;
+      --ink: #1A1A3E;
+      --ink-light: #6B6B9A;
+      --border: #E2E8F8;
+      --shadow: 0 2px 16px rgba(59,59,219,0.08);
+      --shadow-md: 0 6px 28px rgba(59,59,219,0.13);
+      --unread-bg: #EEF2FF;
+      --unread-border: #3B3BDB;
+    }
+
+    body { font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+    /* NAVBAR */
+    nav {
+      background: var(--white); border-bottom: 1.5px solid var(--border);
+      padding: 0 40px; height: 68px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px rgba(59,59,219,0.06);
+    }
+    .nav-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .nav-logo { width: 36px; height: 36px; }
+    .nav-name { font-family: 'Poppins', sans-serif; font-size: 22px; font-weight: 700; background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .nav-links { display: flex; align-items: center; gap: 6px; }
+    .nav-link { padding: 8px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; color: var(--ink-light); text-decoration: none; transition: background 0.18s, color 0.18s; }
+    .nav-link:hover { background: var(--bg); color: var(--ink); }
+    .nav-link.active { color: var(--blue); background: var(--grad-soft); }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .btn-publish { padding: 10px 20px; background: var(--grad); color: #fff; border: none; border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 3px 14px rgba(59,59,219,0.25); text-decoration: none; transition: opacity 0.2s, transform 0.15s; }
+    .btn-publish:hover { opacity: 0.88; transform: translateY(-1px); }
+    .avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--grad); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: white; box-shadow: 0 2px 10px rgba(59,59,219,0.25); cursor: pointer; }
+
+    /* PAGE HEADER */
+    .page-header { background: var(--grad); padding: 40px 40px 36px; position: relative; overflow: hidden; }
+    .page-header::before { content: ''; position: absolute; top: -60px; right: -60px; width: 220px; height: 220px; border-radius: 50%; background: rgba(255,255,255,0.07); }
+    .page-header-inner { max-width: 800px; margin: 0 auto; position: relative; z-index: 1; }
+    .page-header h1 { font-family: 'Poppins', sans-serif; font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+    .page-header p { font-size: 14px; color: rgba(255,255,255,0.7); }
+
+    /* MAIN */
+    .main { max-width: 800px; margin: 0 auto; padding: 32px 24px 60px; }
+
+    /* FILTER BAR */
+    .filter-bar {
+      display: flex; gap: 10px; margin-bottom: 24px;
+      overflow-x: auto; padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+    .filter-bar::-webkit-scrollbar { display: none; }
+    .filter-btn {
+      padding: 10px 20px; border: 1.5px solid var(--border);
+      border-radius: 50px; background: var(--white);
+      font-family: 'Nunito', sans-serif; font-size: 14px;
+      font-weight: 700; color: var(--ink-light); cursor: pointer;
+      transition: all 0.2s; white-space: nowrap;
+    }
+    .filter-btn:hover { background: var(--bg); border-color: rgba(59,59,219,0.2); }
+    .filter-btn.active {
+      background: var(--blue); color: white; border-color: var(--blue);
+      box-shadow: 0 4px 12px rgba(59,59,219,0.25);
+    }
+
+    /* NOTIFICATIONS LIST */
+    .notif-list { display: flex; flex-direction: column; gap: 14px; }
+    
+    .notif-card {
+      background: var(--white); border: 1.5px solid var(--border);
+      border-radius: 16px; padding: 18px 24px;
+      display: flex; gap: 16px; align-items: flex-start;
+      cursor: pointer; transition: all 0.2s;
+      animation: fadeUp 0.4s ease both;
+    }
+    .notif-card:hover { border-color: var(--blue-mid); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .notif-card.unread { background: var(--unread-bg); border-color: rgba(59,59,219,0.15); border-left: 5px solid var(--unread-border); }
+    .notif-card.unread:hover { border-color: var(--blue-mid); border-left-color: var(--blue-mid); }
+    
+    .notif-icon {
+      width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; background: var(--grad-soft); color: var(--blue);
+    }
+    .notif-card.unread .notif-icon { background: var(--blue); color: white; }
+
+    .notif-content { flex: 1; }
+    .notif-message { font-size: 15px; color: var(--ink); font-weight: 600; line-height: 1.4; margin-bottom: 6px; }
+    .notif-card.unread .notif-message { font-weight: 700; }
+    .notif-date { font-size: 12px; color: var(--ink-light); font-weight: 600; }
+
+    /* EMPTY STATE */
+    .empty-state { text-align: center; padding: 60px 20px; }
+    .empty-icon { width: 64px; height: 64px; background: var(--white); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--ink-light); box-shadow: var(--shadow); }
+    .empty-title { font-family: 'Poppins', sans-serif; font-size: 18px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+    .empty-sub { font-size: 14px; color: var(--ink-light); }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 600px) {
+      nav { padding: 0 16px; }
+      .page-header { padding: 32px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="home.html">
+    <svg class="nav-logo" viewBox="0 0 120 120" fill="none">
+      <path d="M60 10C38 10 20 28 20 50C20 70 45 95 58 108C59.2 109.3 60.8 109.3 62 108C75 95 100 70 100 50C100 28 82 10 60 10Z" stroke="url(#g1)" stroke-width="7" fill="none"/>
+      <circle cx="60" cy="47" r="18" stroke="url(#g1)" stroke-width="7" fill="none"/>
+      <circle cx="60" cy="47" r="7" fill="url(#g1)"/>
+      <line x1="73" y1="60" x2="88" y2="75" stroke="url(#g1)" stroke-width="7" stroke-linecap="round"/>
+      <defs><linearGradient id="g1" x1="20" y1="10" x2="100" y2="110" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#3B3BDB"/><stop offset="100%" stop-color="#00C9A7"/></linearGradient></defs>
+    </svg>
+    <span class="nav-name">vindora</span>
+  </a>
+  <div class="nav-links">
+    <a href="home.html" class="nav-link">Accueil</a>
+    <a href="my-posts.html" class="nav-link">Mes publications</a>
+    <a href="comments.html" class="nav-link">Commentaires</a>
+  </div>
+  <div class="nav-right">
+    <a href="create-post.html" class="btn-publish">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Publier
+    </a>
+    <div class="avatar" onclick="window.location.href='profile.html'" style="cursor:pointer">AB</div>
+  </div>
+</nav>
+
+<div class="page-header">
+  <div class="page-header-inner">
+    <h1>Mes Notifications</h1>
+    <p>Restez informé de l'activité sur vos objets et vos messages</p>
+  </div>
+</div>
+
+<div class="main">
+  <!-- TASK 1: HTML UI for Filters -->
+  <div class="filter-bar">
+    <button class="filter-btn active" id="filter-notif-all" onclick="filterNotifs('all')">Toutes</button>
+    <button class="filter-btn" id="filter-notif-alerts" onclick="filterNotifs('alert')">Alertes</button>
+    <button class="filter-btn" id="filter-notif-messages" onclick="filterNotifs('message')">Messages</button>
+    <button class="filter-btn" id="filter-notif-matches" onclick="filterNotifs('match')">Matchs</button>
+  </div>
+
+  <div class="notif-list" id="notifications-wrapper">
+    <!-- Notifications render here -->
+  </div>
+</div>
+
+<script type="module" src="./session.js"></script>
+<script type="module" src="./notifications.js"></script>
+</body>
+</html>

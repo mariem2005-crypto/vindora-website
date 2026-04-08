@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vindora — Connexion</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue: #3B3BDB;
+      --blue-mid: #2A6DD9;
+      --teal: #00C9A7;
+      --grad: linear-gradient(135deg, #3B3BDB 0%, #00C9A7 100%);
+      --grad-soft: linear-gradient(135deg, rgba(59,59,219,0.07) 0%, rgba(0,201,167,0.07) 100%);
+      --white: #FFFFFF;
+      --bg: #F4F7FF;
+      --ink: #1A1A3E;
+      --ink-light: #6B6B9A;
+      --border: #E2E8F8;
+      --shadow: 0 4px 24px rgba(59,59,219,0.10);
+      --shadow-lg: 0 12px 56px rgba(59,59,219,0.16);
+    }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      position: relative;
+      overflow-y: auto;
+      padding: 40px 16px;
+    }
+
+    .blob { position: fixed; border-radius: 50%; filter: blur(80px); pointer-events: none; z-index: 0; }
+    .blob-1 { width: 500px; height: 500px; background: rgba(59,59,219,0.10); top: -150px; right: -100px; }
+    .blob-2 { width: 400px; height: 400px; background: rgba(0,201,167,0.10); bottom: -100px; left: -80px; }
+
+    .page {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      width: 1000px;
+      min-height: 630px;
+      max-height: 90vh;
+      background: var(--white);
+      border-radius: 32px;
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      position: relative;
+      z-index: 1;
+      animation: rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(28px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* LEFT */
+    .panel-left {
+      background: var(--grad);
+      padding: 52px 48px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      position: relative; overflow: hidden;
+    }
+    .panel-left::before {
+      content: ''; position: absolute; top: -80px; left: -80px;
+      width: 320px; height: 320px; border-radius: 50%; background: rgba(255,255,255,0.07);
+    }
+    .panel-left::after {
+      content: ''; position: absolute; bottom: -60px; right: -60px;
+      width: 240px; height: 240px; border-radius: 50%; background: rgba(255,255,255,0.05);
+    }
+
+    .brand { position: relative; z-index: 2; display: flex; align-items: center; gap: 14px; }
+    .brand-logo-svg { width: 50px; height: 50px; flex-shrink: 0; }
+    .brand-name { font-family: 'Poppins', sans-serif; font-size: 28px; font-weight: 700; color: #fff; line-height: 1; letter-spacing: -0.5px; }
+    .brand-tagline { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+
+    .panel-center { position: relative; z-index: 2; text-align: center; }
+
+    .hero-graphic {
+      width: 100px; height: 100px;
+      background: rgba(255,255,255,0.13);
+      border: 2px solid rgba(255,255,255,0.22);
+      border-radius: 30px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 24px;
+      animation: float 3.5s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-9px); }
+    }
+
+    .hero-title { font-family: 'Poppins', sans-serif; font-size: 23px; font-weight: 700; color: #fff; line-height: 1.3; margin-bottom: 12px; }
+    .hero-desc { font-size: 13.5px; color: rgba(255,255,255,0.68); line-height: 1.7; max-width: 270px; margin: 0 auto; }
+
+
+    /* RIGHT */
+    .panel-right { padding: 48px 52px; display: flex; flex-direction: column; justify-content: flex-start; max-height: 90vh; overflow-y: auto; scroll-behavior: smooth; }
+    .panel-right::-webkit-scrollbar { width: 5px; }
+    .panel-right::-webkit-scrollbar-track { background: transparent; }
+    .panel-right::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+    .panel-right::-webkit-scrollbar-thumb:hover { background: #c0c8e0; }
+
+    .tabs { display: flex; background: var(--bg); border-radius: 14px; padding: 5px; margin-bottom: 32px; gap: 4px; }
+    .tab { flex: 1; padding: 11px; border: none; background: transparent; border-radius: 10px; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; color: var(--ink-light); cursor: pointer; transition: all 0.25s ease; }
+    .tab.active { background: var(--white); color: var(--blue); box-shadow: var(--shadow); }
+
+    .form { display: none; }
+    .form.active { display: block; animation: fadeSlide 0.3s ease; }
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateX(10px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .form-title { font-family: 'Poppins', sans-serif; font-size: 24px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+    .form-subtitle { font-size: 13.5px; color: var(--ink-light); margin-bottom: 26px; }
+
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 7px; }
+    .input-wrap { position: relative; }
+    .input-wrap .ico { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--ink-light); opacity: 0.5; pointer-events: none; display: flex; align-items: center; }
+    .field input { width: 100%; padding: 12px 14px 12px 42px; border: 2px solid var(--border); border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 500; color: var(--ink); background: var(--white); outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+    .field input:focus { border-color: var(--blue-mid); box-shadow: 0 0 0 3px rgba(59,59,219,0.09); }
+    .field input::placeholder { color: #BBC3DA; font-weight: 400; }
+
+    .field select { width: 100%; padding: 12px 14px 12px 42px; border: 2px solid var(--border); border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 500; color: var(--ink); background: var(--white); outline: none; transition: border-color 0.2s, box-shadow 0.2s; appearance: none; cursor: pointer; }
+    .field select:focus { border-color: var(--blue-mid); box-shadow: 0 0 0 3px rgba(59,59,219,0.09); }
+    .field select option:first-child { color: #BBC3DA; }
+    .select-arrow { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--ink-light); opacity: 0.5; }
+
+    .input-wrap.has-eye input { padding-right: 44px; }
+    .eye-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--ink-light); opacity: 0.45; padding: 4px; display: flex; align-items: center; transition: opacity 0.2s; }
+    .eye-btn:hover { opacity: 0.85; }
+
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .forgot { text-align: right; margin-top: -8px; margin-bottom: 20px; }
+    .forgot a { font-size: 12.5px; font-weight: 700; background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+
+    .role-toggle { display: flex; gap: 10px; margin-bottom: 16px; }
+    .role-btn {
+      flex: 1; padding: 11px 10px;
+      border: 2px solid var(--border); border-radius: 12px;
+      background: var(--white); font-family: 'Nunito', sans-serif;
+      font-size: 13px; font-weight: 700; color: var(--ink-light);
+      cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .role-btn.selected { border-color: var(--blue-mid); background: var(--grad-soft); color: var(--blue); }
+
+    .btn-submit {
+      width: 100%; padding: 14px; background: var(--grad);
+      color: white; border: none; border-radius: 12px;
+      font-family: 'Poppins', sans-serif; font-size: 15px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(59,59,219,0.28); letter-spacing: 0.2px;
+    }
+    .btn-submit:hover { opacity: 0.91; transform: translateY(-1px); box-shadow: 0 8px 28px rgba(59,59,219,0.36); }
+    .btn-submit:active { transform: translateY(0); }
+
+    .divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1.5px; background: var(--border); }
+    .divider span { font-size: 12px; color: var(--ink-light); font-weight: 600; }
+
+    .btn-google {
+      width: 100%; padding: 12px; background: var(--white);
+      border: 2px solid var(--border); border-radius: 12px;
+      font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; color: var(--ink);
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+      transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .btn-google:hover { border-color: #BBC3DA; box-shadow: var(--shadow); }
+
+    .toast {
+      position: fixed; bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(70px);
+      background: var(--ink); color: #fff;
+      padding: 13px 28px; border-radius: 50px;
+      font-size: 14px; font-weight: 600; font-family: 'Nunito', sans-serif;
+      box-shadow: var(--shadow-lg);
+      transition: transform 0.4s cubic-bezier(0.22,1,0.36,1), opacity 0.3s;
+      opacity: 0; z-index: 999;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    @media (max-width: 760px) {
+      .page { grid-template-columns: 1fr; width: 95vw; }
+      .panel-left { display: none; }
+      .panel-right { padding: 36px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+
+<div class="page">
+
+  <!-- LEFT -->
+  <div class="panel-left">
+    <div class="brand">
+      <svg class="brand-logo-svg" viewBox="0 0 120 120" fill="none">
+        <path d="M60 10C38 10 20 28 20 50C20 70 45 95 58 108C59.2 109.3 60.8 109.3 62 108C75 95 100 70 100 50C100 28 82 10 60 10Z" stroke="white" stroke-width="6" fill="none"/>
+        <circle cx="60" cy="47" r="18" stroke="white" stroke-width="6" fill="none"/>
+        <circle cx="60" cy="47" r="7" fill="white"/>
+        <line x1="73" y1="60" x2="88" y2="75" stroke="white" stroke-width="6" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="brand-name">vindora</div>
+        <div class="brand-tagline">Objets perdus · Objets trouvés</div>
+      </div>
+    </div>
+
+    <div class="panel-center" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+      <div class="hero-graphic">
+        <svg viewBox="0 0 120 120" fill="none" width="52" height="52">
+          <path d="M60 10C38 10 20 28 20 50C20 70 45 95 58 108C59.2 109.3 60.8 109.3 62 108C75 95 100 70 100 50C100 28 82 10 60 10Z" stroke="white" stroke-width="6" fill="none"/>
+          <circle cx="60" cy="47" r="18" stroke="white" stroke-width="6" fill="none"/>
+          <circle cx="60" cy="47" r="7" fill="white"/>
+          <line x1="73" y1="60" x2="88" y2="75" stroke="white" stroke-width="6" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="hero-title">Retrouvez ce qui compte pour vous</div>
+      <div class="hero-desc">Publiez, recherchez et récupérez vos objets perdus grâce à notre communauté.</div>
+    </div>
+
+
+  </div>
+
+  <!-- RIGHT -->
+  <div class="panel-right">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('login')">Se connecter</button>
+      <button class="tab" onclick="switchTab('register')">S'inscrire</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div class="form active" id="form-login">
+      <div class="form-title">Bon retour</div>
+      <div class="form-subtitle">Connectez-vous à votre compte Vindora</div>
+
+      <div class="field">
+        <label>Vous êtes</label>
+        <div class="role-toggle">
+          <button class="role-btn selected" id="login-role-user" onclick="selectLoginRole('user')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" stroke="#2A6DD9"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            Utilisateur
+          </button>
+          <button class="role-btn" id="login-role-admin" onclick="selectLoginRole('admin')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" stroke="#6B6B9A"><path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2Z"/></svg>
+            Administrateur
+          </button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Adresse email</label>
+        <div class="input-wrap">
+          <span class="ico">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+            </svg>
+          </span>
+          <input type="email" id="login-email" placeholder="vous@email.com"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Mot de passe</label>
+        <div class="input-wrap has-eye">
+          <span class="ico">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </span>
+          <input type="password" id="login-password" placeholder="••••••••"/>
+          <button type="button" class="eye-btn" onclick="toggleEye('login-password', this)" aria-label="Afficher/masquer">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12S5 5 12 5s11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="forgot"><a href="#" onclick="showToast('Fonctionnalité bientôt disponible');return false;">Mot de passe oublié ?</a></div>
+
+      <button class="btn-submit" id="btn-login" onclick="realLogin()">Se connecter</button>
+
+      <div class="divider"><span>ou continuer avec</span></div>
+
+      <button class="btn-google" onclick="showToast('Redirection vers Google...')">
+        <svg width="18" height="18" viewBox="0 0 18 18">
+          <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+          <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+          <path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
+          <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z"/>
+        </svg>
+        Continuer avec Google
+      </button>
+    </div>
+
+    <!-- REGISTER -->
+    <div class="form" id="form-register">
+      <div class="form-title">Créer un compte</div>
+      <div class="form-subtitle">Rejoignez la communauté Vindora</div>
+
+      <div class="field">
+        <label>Vous êtes</label>
+        <div class="role-toggle">
+          <button class="role-btn selected" id="role-user" onclick="selectRole('user')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" stroke="#2A6DD9">
+              <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+            </svg>
+            Utilisateur
+          </button>
+          <button class="role-btn" id="role-admin" onclick="selectRole('admin')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" stroke="#6B6B9A">
+              <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2Z"/>
+            </svg>
+            Administrateur
+          </button>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Prénom</label>
+          <div class="input-wrap">
+            <span class="ico">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+              </svg>
+            </span>
+            <input type="text" id="reg-prenom" placeholder="Amine"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>Nom</label>
+          <div class="input-wrap">
+            <span class="ico">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+              </svg>
+            </span>
+            <input type="text" id="reg-nom" placeholder="Bensalem"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Numéro de téléphone</label>
+        <div class="input-wrap">
+          <span class="ico">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.78a16 16 0 0 0 6 6l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+          </span>
+          <input type="tel" id="reg-phone" placeholder="+216 XX XXX XXX"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Ville</label>
+        <div class="input-wrap">
+          <span class="ico">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/>
+            </svg>
+          </span>
+          <select id="reg-city">
+            <option value="" disabled selected style="color:#BBC3DA">Choisissez votre ville</option>
+            <option>Ariana</option>
+            <option>Béja</option>
+            <option>Ben Arous</option>
+            <option>Bizerte</option>
+            <option>Gabès</option>
+            <option>Gafsa</option>
+            <option>Jendouba</option>
+            <option>Kairouan</option>
+            <option>Kasserine</option>
+            <option>Kébili</option>
+            <option>Le Kef</option>
+            <option>Mahdia</option>
+            <option>La Manouba</option>
+            <option>Médenine</option>
+            <option>Monastir</option>
+            <option>Nabeul</option>
+            <option>Sfax</option>
+            <option>Sidi Bouzid</option>
+            <option>Siliana</option>
+            <option>Sousse</option>
+            <option>Tataouine</option>
+            <option>Tozeur</option>
+            <option>Tunis</option>
+            <option>Zaghouan</option>
+          </select>
+          <span class="select-arrow">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Adresse email</label>
+        <div class="input-wrap">
+          <span class="ico">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+            </svg>
+          </span>
+          <input type="email" id="reg-email" placeholder="vous@email.com"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Mot de passe</label>
+        <div class="input-wrap has-eye">
+          <span class="ico">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </span>
+          <input type="password" id="reg-password" placeholder="••••••••"/>
+          <button type="button" class="eye-btn" onclick="toggleEye('reg-password', this)" aria-label="Afficher/masquer">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12S5 5 12 5s11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Confirmer mot de passe</label>
+        <div class="input-wrap has-eye">
+          <span class="ico">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </span>
+          <input type="password" id="reg-pwd-confirm" placeholder="••••••••"/>
+          <button type="button" class="eye-btn" onclick="toggleEye('reg-pwd-confirm', this)" aria-label="Afficher/masquer">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12S5 5 12 5s11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <button class="btn-submit" id="btn-register" onclick="realRegister()">Créer mon compte</button>
+
+      <div class="divider"><span>ou continuer avec</span></div>
+
+      <button class="btn-google" onclick="showToast('Redirection vers Google...')">
+        <svg width="18" height="18" viewBox="0 0 18 18">
+          <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+          <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+          <path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
+          <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z"/>
+        </svg>
+        Continuer avec Google
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  function toggleEye(inputId, btn) {
+    const input = document.getElementById(inputId);
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    btn.style.opacity = isHidden ? '0.85' : '0.45';
+    btn.innerHTML = isHidden
+      ? `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+      : `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12S5 5 12 5s11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  }
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach((t, i) => {
+      t.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1));
+    });
+    document.getElementById('form-login').classList.toggle('active', tab === 'login');
+    document.getElementById('form-register').classList.toggle('active', tab === 'register');
+  }
+
+  window.currentRole = 'user';
+  window.currentLoginRole = 'user';
+
+  function selectLoginRole(role) {
+    window.currentLoginRole = role;
+    const user  = document.getElementById('login-role-user');
+    const admin = document.getElementById('login-role-admin');
+    user.classList.toggle('selected', role === 'user');
+    admin.classList.toggle('selected', role === 'admin');
+    user.querySelector('svg').setAttribute('stroke', role === 'user' ? '#2A6DD9' : '#6B6B9A');
+    admin.querySelector('svg').setAttribute('stroke', role === 'admin' ? '#2A6DD9' : '#6B6B9A');
+  }
+
+  function selectRole(role) {
+    window.currentRole = role;
+    console.log("🛠️ Rôle cliqué :", window.currentRole);
+    const user  = document.getElementById('role-user');
+    const admin = document.getElementById('role-admin');
+    user.classList.toggle('selected', role === 'user');
+    admin.classList.toggle('selected', role === 'admin');
+    user.querySelector('svg').setAttribute('stroke', role === 'user' ? '#2A6DD9' : '#6B6B9A');
+    admin.querySelector('svg').setAttribute('stroke', role === 'admin' ? '#2A6DD9' : '#6B6B9A');
+  }
+
+  function handleLogin() {
+    showToast('Connexion réussie, redirection...');
+    setTimeout(() => {
+      window.location.href = currentLoginRole === 'admin' ? 'admin.html' : 'home.html';
+    }, 1500);
+  }
+
+  function handleRegister() {
+    showToast('Compte créé avec succès !');
+    setTimeout(() => {
+      window.location.href = currentRole === 'admin' ? 'admin.html' : 'home.html';
+    }, 1500);
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  // Check if there was an access error redirection
+  window.addEventListener('DOMContentLoaded', () => {
+    const err = sessionStorage.getItem('authError');
+    if (err) {
+      setTimeout(() => showToast(err), 300);
+      sessionStorage.removeItem('authError');
+    }
+  });
+</script>
+<script type="module" src="./firebase-config.js?v=2"></script>
+<script type="module" src="./auth.js?v=3"></script>
+</body>
+</html>

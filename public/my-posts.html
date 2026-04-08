@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vindora — Mes publications</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue: #3B3BDB;
+      --blue-mid: #2A6DD9;
+      --teal: #00C9A7;
+      --grad: linear-gradient(135deg, #3B3BDB 0%, #00C9A7 100%);
+      --grad-soft: linear-gradient(135deg, rgba(59,59,219,0.07) 0%, rgba(0,201,167,0.07) 100%);
+      --white: #FFFFFF;
+      --bg: #F4F7FF;
+      --ink: #1A1A3E;
+      --ink-light: #6B6B9A;
+      --border: #E2E8F8;
+      --shadow: 0 2px 16px rgba(59,59,219,0.08);
+      --shadow-md: 0 6px 28px rgba(59,59,219,0.13);
+      --lost-bg: #FFF4F4; --lost-color: #E03B3B;
+      --found-bg: #F0FDF8; --found-color: #0A9E6E;
+      --danger: #E03B3B;
+    }
+
+    body { font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+    /* NAVBAR */
+    nav {
+      background: var(--white); border-bottom: 1.5px solid var(--border);
+      padding: 0 40px; height: 68px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px rgba(59,59,219,0.06);
+    }
+    .nav-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .nav-logo { width: 36px; height: 36px; }
+    .nav-name { font-family: 'Poppins', sans-serif; font-size: 22px; font-weight: 700; background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .nav-links { display: flex; align-items: center; gap: 6px; }
+    .nav-link { padding: 8px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; color: var(--ink-light); text-decoration: none; transition: background 0.18s, color 0.18s; }
+    .nav-link:hover { background: var(--bg); color: var(--ink); }
+    .nav-link.active { color: var(--blue); background: var(--grad-soft); }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .btn-publish { padding: 10px 20px; background: var(--grad); color: #fff; border: none; border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 3px 14px rgba(59,59,219,0.25); text-decoration: none; transition: opacity 0.2s, transform 0.15s; }
+    .btn-publish:hover { opacity: 0.88; transform: translateY(-1px); }
+    .avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--grad); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: white; box-shadow: 0 2px 10px rgba(59,59,219,0.25); cursor: pointer; }
+
+    /* PAGE HEADER */
+    .page-header { background: var(--grad); padding: 40px 40px 36px; position: relative; overflow: hidden; }
+    .page-header::before { content: ''; position: absolute; top: -60px; right: -60px; width: 220px; height: 220px; border-radius: 50%; background: rgba(255,255,255,0.07); }
+    .page-header-inner { max-width: 1100px; margin: 0 auto; position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; }
+    .page-header h1 { font-family: 'Poppins', sans-serif; font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+    .page-header p { font-size: 14px; color: rgba(255,255,255,0.7); }
+
+    .header-stats { display: flex; gap: 16px; }
+    .hstat {
+      background: rgba(255,255,255,0.13);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 14px;
+      padding: 14px 20px;
+      text-align: center;
+      min-width: 90px;
+    }
+    .hstat-num { font-family: 'Poppins', sans-serif; font-size: 22px; font-weight: 700; color: #fff; }
+    .hstat-label { font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; }
+
+    /* MAIN */
+    .main { max-width: 1100px; margin: 0 auto; padding: 32px 24px 60px; }
+
+    /* TOOLBAR */
+    .toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 24px; gap: 12px; flex-wrap: wrap;
+    }
+
+    .tab-filter { display: flex; background: var(--white); border: 1.5px solid var(--border); border-radius: 14px; padding: 4px; gap: 4px; }
+    .tf-btn { padding: 8px 18px; border: none; background: transparent; border-radius: 10px; font-family: 'Nunito', sans-serif; font-size: 13.5px; font-weight: 700; color: var(--ink-light); cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+    .tf-btn.active { background: var(--grad); color: white; box-shadow: 0 2px 10px rgba(59,59,219,0.25); }
+
+    .toolbar-right { display: flex; align-items: center; gap: 10px; }
+    .sort-select { padding: 9px 14px; border: 2px solid var(--border); border-radius: 10px; font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 600; color: var(--ink); background: var(--white); outline: none; cursor: pointer; appearance: none; }
+
+    /* POSTS LIST */
+    .posts-list { display: flex; flex-direction: column; gap: 16px; }
+
+    .post-card {
+      background: var(--white);
+      border-radius: 18px;
+      border: 1.5px solid var(--border);
+      padding: 20px 24px;
+      display: grid;
+      grid-template-columns: 72px 1fr auto;
+      gap: 18px;
+      align-items: center;
+      transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+      animation: fadeUp 0.4s ease both;
+      cursor: pointer;
+    }
+    .post-card:hover { box-shadow: var(--shadow-md); border-color: rgba(59,59,219,0.18); transform: translateY(-2px); }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .post-thumb {
+      width: 72px; height: 72px;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+      flex-shrink: 0;
+    }
+
+    .post-meta-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+
+    .badge {
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .badge-lost { background: var(--lost-bg); color: var(--lost-color); }
+    .badge-found { background: var(--found-bg); color: var(--found-color); }
+    .badge-active { background: #EFF6FF; color: #2A6DD9; }
+    .badge-resolved { background: #F0FDF8; color: #0A9E6E; }
+
+    .post-category { font-size: 11.5px; font-weight: 700; color: var(--teal); text-transform: uppercase; letter-spacing: 0.4px; }
+
+    .post-title { font-family: 'Poppins', sans-serif; font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+
+    .post-desc { font-size: 13px; color: var(--ink-light); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 1; line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 10px; }
+
+    .post-footer-meta { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .pmeta { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-light); font-weight: 600; }
+    .pmeta svg { opacity: 0.45; }
+
+    .post-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; flex-shrink: 0; }
+
+    .btn-edit {
+      padding: 9px 18px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      background: var(--white);
+      font-family: 'Nunito', sans-serif;
+      font-size: 13px; font-weight: 700;
+      color: var(--blue);
+      cursor: pointer;
+      display: flex; align-items: center; gap: 7px;
+      transition: all 0.18s;
+      white-space: nowrap;
+    }
+    .btn-edit:hover { background: var(--grad-soft); border-color: var(--blue-mid); }
+
+    .btn-delete {
+      padding: 9px 18px;
+      border: 2px solid #FFE5E5;
+      border-radius: 10px;
+      background: #FFF8F8;
+      font-family: 'Nunito', sans-serif;
+      font-size: 13px; font-weight: 700;
+      color: var(--danger);
+      cursor: pointer;
+      display: flex; align-items: center; gap: 7px;
+      transition: all 0.18s;
+      white-space: nowrap;
+    }
+    .btn-delete:hover { background: #FFE5E5; border-color: var(--danger); }
+
+    /* EMPTY STATE */
+    .empty-state {
+      text-align: center; padding: 80px 20px;
+      background: var(--white); border-radius: 20px;
+      border: 1.5px solid var(--border);
+    }
+    .empty-icon { width: 72px; height: 72px; background: var(--bg); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+    .empty-title { font-family: 'Poppins', sans-serif; font-size: 18px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+    .empty-sub { font-size: 14px; color: var(--ink-light); margin-bottom: 24px; }
+    .btn-empty { padding: 12px 28px; background: var(--grad); color: white; border: none; border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(59,59,219,0.25); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+
+    /* MODAL */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(26,26,62,0.45);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      display: none; align-items: center; justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+
+    .modal {
+      background: var(--white); border-radius: 24px;
+      padding: 32px; max-width: 420px; width: 90%;
+      box-shadow: 0 20px 60px rgba(26,26,62,0.2);
+      animation: popIn 0.3s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.92) translateY(16px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .modal-icon { width: 56px; height: 56px; background: #FFF4F4; border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+    .modal h3 { font-family: 'Poppins', sans-serif; font-size: 18px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+    .modal p { font-size: 14px; color: var(--ink-light); line-height: 1.6; margin-bottom: 24px; }
+    .modal-actions { display: flex; gap: 10px; }
+    .btn-modal-cancel { flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 12px; background: var(--white); font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; color: var(--ink-light); cursor: pointer; transition: all 0.2s; }
+    .btn-modal-cancel:hover { border-color: var(--blue-mid); color: var(--blue); }
+    .btn-modal-delete { flex: 1; padding: 12px; border: none; border-radius: 12px; background: var(--danger); color: white; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(224,59,59,0.3); transition: opacity 0.2s; }
+    .btn-modal-delete:hover { opacity: 0.88; }
+
+    /* EDIT DRAWER */
+    .drawer-overlay { position: fixed; inset: 0; background: rgba(26,26,62,0.4); backdrop-filter: blur(4px); z-index: 200; display: none; }
+    .drawer-overlay.show { display: block; }
+    .drawer {
+      position: fixed; right: 0; top: 0; bottom: 0;
+      width: 480px; background: var(--white);
+      box-shadow: -8px 0 40px rgba(26,26,62,0.15);
+      z-index: 201; display: flex; flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.35s cubic-bezier(0.22,1,0.36,1);
+    }
+    .drawer.show { transform: translateX(0); }
+    .drawer-header { padding: 24px 28px; border-bottom: 1.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .drawer-title { font-family: 'Poppins', sans-serif; font-size: 17px; font-weight: 700; color: var(--ink); }
+    .drawer-close { width: 36px; height: 36px; border-radius: 10px; border: 2px solid var(--border); background: var(--white); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--ink-light); transition: all 0.18s; }
+    .drawer-close:hover { border-color: var(--danger); color: var(--danger); }
+    .drawer-body { flex: 1; overflow-y: auto; padding: 24px 28px; }
+    .drawer-footer { padding: 18px 28px; border-top: 1.5px solid var(--border); display: flex; gap: 10px; }
+
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 7px; }
+    .input-wrap { position: relative; }
+    .input-wrap .ico { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--ink-light); opacity: 0.45; pointer-events: none; display: flex; align-items: center; }
+    input[type="text"], select, textarea {
+      width: 100%; padding: 12px 14px 12px 42px;
+      border: 2px solid var(--border); border-radius: 12px;
+      font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 500;
+      color: var(--ink); background: var(--white); outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s; appearance: none;
+    }
+    input[type="text"]:focus, select:focus, textarea:focus { border-color: var(--blue-mid); box-shadow: 0 0 0 3px rgba(59,59,219,0.09); }
+    textarea { padding: 14px; resize: vertical; min-height: 100px; line-height: 1.6; }
+    .no-icon { padding-left: 14px !important; }
+    input::placeholder, textarea::placeholder { color: #BBC3DA; font-weight: 400; }
+
+    .btn-save { flex: 1; padding: 12px; background: var(--grad); color: white; border: none; border-radius: 12px; font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 16px rgba(59,59,219,0.25); transition: opacity 0.2s; }
+    .btn-save:hover { opacity: 0.9; }
+    .btn-drawer-cancel { flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 12px; background: var(--white); font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; color: var(--ink-light); cursor: pointer; transition: all 0.2s; }
+    .btn-drawer-cancel:hover { border-color: var(--blue-mid); color: var(--blue); }
+
+    /* TOAST */
+    .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(70px); background: var(--ink); color: #fff; padding: 13px 28px; border-radius: 50px; font-size: 14px; font-weight: 600; box-shadow: var(--shadow-md); transition: transform 0.4s cubic-bezier(0.22,1,0.36,1), opacity 0.3s; opacity: 0; z-index: 999; }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    @media (max-width: 700px) {
+      nav { padding: 0 16px; }
+      .post-card { grid-template-columns: 56px 1fr; }
+      .post-actions { flex-direction: row; grid-column: 1 / -1; }
+      .drawer { width: 100%; }
+      .header-stats { display: none; }
+    }
+  </style>
+
+<style>
+.obj-icon { width: 100%; height: 100%; display: block; }
+.card-img-placeholder .obj-icon,
+.post-thumb .obj-icon,
+.post-thumb-sm .obj-icon,
+.related-thumb .obj-icon { width: 44px; height: 44px; }
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav>
+  <a class="nav-brand" href="home.html">
+    <svg class="nav-logo" viewBox="0 0 120 120" fill="none">
+      <path d="M60 10C38 10 20 28 20 50C20 70 45 95 58 108C59.2 109.3 60.8 109.3 62 108C75 95 100 70 100 50C100 28 82 10 60 10Z" stroke="url(#g1)" stroke-width="7" fill="none"/>
+      <circle cx="60" cy="47" r="18" stroke="url(#g1)" stroke-width="7" fill="none"/>
+      <circle cx="60" cy="47" r="7" fill="url(#g1)"/>
+      <line x1="73" y1="60" x2="88" y2="75" stroke="url(#g1)" stroke-width="7" stroke-linecap="round"/>
+      <defs><linearGradient id="g1" x1="20" y1="10" x2="100" y2="110" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#3B3BDB"/><stop offset="100%" stop-color="#00C9A7"/></linearGradient></defs>
+    </svg>
+    <span class="nav-name">vindora</span>
+  </a>
+  <div class="nav-links">
+    <a href="home.html" class="nav-link">Accueil</a>
+    <a href="my-posts.html" class="nav-link active">Mes publications</a>
+    <a href="comments.html" class="nav-link">Commentaires</a>
+  </div>
+  <div class="nav-right">
+    <a href="create-post.html" class="btn-publish">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Publier
+    </a>
+    <div class="avatar" onclick="window.location.href='profile.html'" style="cursor:pointer">AB</div>
+  </div>
+</nav>
+
+<!-- PAGE HEADER -->
+<div class="page-header">
+  <div class="page-header-inner">
+    <div>
+      <h1>Mes publications</h1>
+      <p>Gérez, modifiez ou supprimez vos annonces</p>
+    </div>
+    <div class="header-stats">
+      <div class="hstat"><div class="hstat-num" id="count-total">0</div><div class="hstat-label">Total</div></div>
+      <div class="hstat"><div class="hstat-num" id="count-actives">0</div><div class="hstat-label">Actives</div></div>
+      <div class="hstat"><div class="hstat-num" id="count-resolues">0</div><div class="hstat-label">Résolues</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <style>
+    .advanced-filter-bar {
+      display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+      background: var(--white); padding: 16px; 
+      border-radius: 16px; border: 1.5px solid var(--border); 
+      margin-bottom: 24px; box-shadow: var(--shadow);
+    }
+    .filter-select {
+      padding: 10px 14px; border: 2px solid var(--border); border-radius: 10px;
+      font-family: 'Nunito', sans-serif; font-size: 13.5px; font-weight: 600;
+      color: var(--ink); background: var(--white); outline: none;
+      cursor: pointer; transition: border-color 0.2s; flex: 1; min-width: 150px;
+    }
+    .filter-select:focus { border-color: var(--blue-mid); box-shadow: 0 0 0 3px rgba(59,59,219,0.09); }
+    .btn-reset-filters {
+      padding: 10px 18px; display: flex; align-items: center; justify-content: center;
+      background: transparent; border: 2px solid var(--border); border-radius: 10px;
+      font-family: 'Nunito', sans-serif; font-size: 13.5px; font-weight: 700;
+      color: var(--ink-light); cursor: pointer; transition: all 0.2s; margin-left: auto;
+    }
+    .btn-reset-filters:hover { color: var(--blue); border-color: var(--blue-mid); background: var(--bg); }
+  </style>
+
+  <!-- ADVANCED FILTERS -->
+  <div class="advanced-filter-bar">
+    <select id="filter-category" class="filter-select" onchange="applyFilters()">
+      <option value="Tous">Toutes les catégories</option>
+      <option value="Électronique">Électronique</option>
+      <option value="Accessoires">Accessoires</option>
+      <option value="Documents">Documents</option>
+      <option value="Autres">Autres</option>
+    </select>
+    <select id="filter-city" class="filter-select" onchange="applyFilters()">
+      <option value="Tous">Toutes les villes</option>
+      <option value="Tunis">Tunis</option>
+      <option value="Sfax">Sfax</option>
+      <option value="Sousse">Sousse</option>
+      <option value="Bizerte">Bizerte</option>
+    </select>
+    <select id="filter-type" class="filter-select" onchange="applyFilters()">
+      <option value="Tous">Tous les objets</option>
+      <option value="Téléphone">Téléphone</option>
+      <option value="Ordinateur">Ordinateur</option>
+      <option value="Sac">Sac</option>
+      <option value="Clés">Clés</option>
+      <option value="Portefeuille">Portefeuille</option>
+    </select>
+    <button class="btn-reset-filters" onclick="resetAllFilters()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="margin-right:6px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+      Réinitialiser
+    </button>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <div class="tab-filter">
+      <button id="count-all" class="tf-btn active" onclick="filterPosts(this, 'all')">Toutes (0)</button>
+      <button id="count-lost" class="tf-btn" onclick="filterPosts(this, 'lost')">Perdues (0)</button>
+      <button id="count-found" class="tf-btn" onclick="filterPosts(this, 'found')">Trouvées (0)</button>
+      <button id="count-resolved" class="tf-btn" onclick="filterPosts(this, 'resolved')">Résolues (0)</button>
+    </div>
+    <div class="toolbar-right">
+      <select class="sort-select">
+        <option>Plus récentes</option>
+        <option>Plus anciennes</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="no-result-msg" style="display: none; text-align: center; padding: 60px 20px; color: var(--ink-light);">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="opacity: 0.2; margin-bottom: 16px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <p style="font-size: 15px; font-weight: 600;">Aucun objet ne correspond à vos critères.</p>
+  </div>
+
+  <!-- POSTS LIST -->
+  <div class="posts-list" id="posts-wrapper">
+      <!-- Les publications dynamiques s'afficheront ici -->
+  </div>
+</div>
+
+<!-- DELETE MODAL -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal">
+    <div class="modal-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E03B3B" stroke-width="2.2" stroke-linecap="round">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+      </svg>
+    </div>
+    <h3>Supprimer cette publication ?</h3>
+    <p>Vous êtes sur le point de supprimer <strong id="delete-title"></strong>. Cette action est irréversible.</p>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeDelete()">Annuler</button>
+      <button class="btn-modal-delete" onclick="confirmDelete()">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT DRAWER -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeEdit()"></div>
+<div class="drawer" id="edit-drawer">
+  <div class="drawer-header">
+    <div class="drawer-title">Modifier la publication</div>
+    <button class="drawer-close" onclick="closeEdit()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body">
+    <div class="field">
+      <label>Titre</label>
+      <div class="input-wrap">
+        <span class="ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
+        <input type="text" id="edit-title"/>
+      </div>
+    </div>
+    <div class="field">
+      <label>Description</label>
+      <textarea class="no-icon" id="edit-desc"></textarea>
+    </div>
+    <div class="field">
+      <label>Ville</label>
+      <div class="input-wrap">
+        <span class="ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg></span>
+        <select id="edit-city">
+          <option>Tunis</option><option>Sfax</option><option>Sousse</option>
+          <option>Bizerte</option><option>Nabeul</option><option>Gabès</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Statut</label>
+      <div class="input-wrap">
+        <span class="ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+        <select id="edit-status">
+          <option value="active">Active</option>
+          <option value="resolu">Résolu</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="drawer-footer">
+    <button class="btn-drawer-cancel" onclick="closeEdit()">Annuler</button>
+    <button class="btn-save" onclick="saveEdit()">Enregistrer</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+
+
+  // DELETE MODAL
+  let deleteTarget = null;
+  function openDelete(title) {
+    deleteTarget = title;
+    document.getElementById('delete-title').textContent = `"${title}"`;
+    document.getElementById('delete-modal').classList.add('show');
+  }
+  function closeDelete() {
+    document.getElementById('delete-modal').classList.remove('show');
+    deleteTarget = null;
+  }
+  function confirmDelete() {
+    // Find and remove the card with matching title
+    if (deleteTarget) {
+      const cards = document.querySelectorAll('.post-card');
+      cards.forEach(card => {
+        const title = card.querySelector('.post-title');
+        if (title && title.textContent.trim() === deleteTarget) {
+          card.style.transition = 'opacity 0.3s, transform 0.3s';
+          card.style.opacity = '0';
+          card.style.transform = 'translateX(20px)';
+          setTimeout(() => card.remove(), 300);
+        }
+      });
+    }
+    closeDelete();
+    showToast('Publication supprimée');
+  }
+
+
+
+  // TOAST
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+</script>
+<script type="module" src="./session.js"></script>
+<script type="module" src="./posts.js"></script>
+</body>
+</html>
