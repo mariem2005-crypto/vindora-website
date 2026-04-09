@@ -88,13 +88,18 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function updateUIProfile(userData) {
-    if (!userData.prenom || !userData.nom) return;
-    const initiales = (userData.prenom.charAt(0) + userData.nom.charAt(0)).toUpperCase();
+    const fullName = (userData.prenom || userData.nom) 
+        ? `${userData.prenom || ''} ${userData.nom || ''}`.trim() 
+        : "Utilisateur Vindora";
+    
+    const initials = (userData.prenom && userData.nom)
+        ? (userData.prenom[0] + userData.nom[0]).toUpperCase()
+        : "UV";
     
     // Mettre à jour les éléments contenant les initiales
     const initialsElements = document.querySelectorAll(".avatar, .admin-av, .profile-avatar, #user-initials");
     initialsElements.forEach(el => {
-        el.textContent = initiales;
+        el.textContent = initials;
     });
 
     // Mettre à jour les éléments de nom complet

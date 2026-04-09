@@ -1,5 +1,7 @@
 import { auth, db } from "./firebase-config.js";
-import { collectionGroup, query, where, getDocs, deleteDoc, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { 
+    collection, query, where, getDocs, doc, deleteDoc, updateDoc, orderBy 
+} from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
 let allComments = [];
@@ -86,11 +88,11 @@ async function fetchComments() {
 
     try {
         // 1. Commentaires écrits par moi
-        const qMine = query(collectionGroup(db, "comments"), where("authorUid", "==", uid));
+        const qMine = query(collection(db, "comments"), where("authorUid", "==", uid));
         const snapMine = await getDocs(qMine);
         
         // 2. Réponses reçues sur mes posts
-        const qReplies = query(collectionGroup(db, "comments"), where("postOwnerUid", "==", uid));
+        const qReplies = query(collection(db, "comments"), where("postOwnerUid", "==", uid));
         const snapReplies = await getDocs(qReplies);
 
         const map = new Map();

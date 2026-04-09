@@ -130,9 +130,9 @@ function renderPost(documentSnapshot) {
     html +=          "<svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round'><path d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z'/><circle cx='12' cy='9' r='2.5'/></svg> ";
     html +=          formattedLocation;
     html +=       "</div>";
-    html +=       "<div class='pmeta'>";
-    html +=          "<svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round'><rect x='3' y='4' width='18' height='18' rx='2'/><line x1='16' y1='2' x2='16' y2='6'/><line x1='8' y1='2' x2='8' y2='6'/><line x1='3' y1='10' x2='21' y2='10'/></svg> ";
-    html +=          dateStr;
+    html +=       "<div class='pmeta' style='display:flex; align-items:center; gap:3px;'>";
+    html +=          "<svg width='12' height='12' viewBox='0 0 24 24' fill='#E03B3B' stroke='#E03B3B'><path d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/></svg> ";
+    html +=          (data.likes ? data.likes.length : 0);
     html +=       "</div>";
     html +=     "</div>";
     html +=   "</div>";

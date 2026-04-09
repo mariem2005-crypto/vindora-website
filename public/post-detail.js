@@ -187,7 +187,7 @@ window.sendComment = async () => {
     if (!text) return;
 
     try {
-        const commRef = collection(db, "posts", postId, "comments");
+        const commRef = collection(db, "comments");
         await addDoc(commRef, {
             postId: postId,
             postTitle: currentPostData.title || "Titre inconnu",
@@ -207,8 +207,8 @@ window.sendComment = async () => {
 };
 
 function listenToComments() {
-    const commRef = collection(db, "posts", postId, "comments");
-    const q = query(commRef, orderBy("createdAt", "desc"));
+    const commRef = collection(db, "comments");
+    const q = query(commRef, where("postId", "==", postId), orderBy("createdAt", "desc"));
 
     onSnapshot(q, (snapshot) => {
         const listEl = document.getElementById("comments-list");
