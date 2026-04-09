@@ -1,5 +1,4 @@
-console.log("Running Posts Script V2.1 - Categories & Filters");
-console.log("Firebase initialized on:", window.location.hostname);
+
 
 import { auth, db } from "./firebase-config.js";
 import { collection, query, where, getDocs, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
@@ -20,7 +19,6 @@ window.deleteMyPost = async function(postId) {
     if (!confirm("Voulez-vous vraiment supprimer cette publication ?")) return;
     try {
         await deleteDoc(doc(db, "posts", postId));
-        console.log("Document supprimé avec succès:", postId);
         if (window.showToast) window.showToast("Publication supprimée avec succès.");
         loadMyPublications(); 
     } catch (error) {
@@ -158,7 +156,6 @@ function renderPost(documentSnapshot) {
 async function loadMyPublications() {
     const user = auth.currentUser;
     if (!user) {
-        console.warn("Utilisateur non authentifié. Arrêt du chargement.");
         return;
     }
 
@@ -235,10 +232,6 @@ window.applyFilters = function() {
     const selectedCity = elCity ? elCity.value : "Tous";
     const selectedObject = elType ? elType.value : "Tous";
 
-    console.log("Filtering for object:", selectedObject);
-    if (allMyPosts.length > 0) {
-        console.log("First post objType is:", allMyPosts[0].data().objType);
-    }
 
     // Filter by dropdowns and tabs via .filter()
     const filteredPosts = allMyPosts.filter(docSnap => {
@@ -299,6 +292,8 @@ window.applyFilters = function() {
     });
     
     updateCounters(filteredPosts.length, actives, resolues);
+    // Refresh tab bubbles based on current filter results
+    updateTabsCountersFromSource(filteredPosts);
 };
 
 window.filterPosts = function(btnElement, filterType) {

@@ -1099,7 +1099,6 @@
 
       onSnapshot(q, (snapshot) => {
         allPostsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log("Données synchronisées :", allPostsData.length);
 
         if (loader) loader.style.display = 'none';
         updateFilterCounts();
