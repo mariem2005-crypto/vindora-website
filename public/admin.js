@@ -12,6 +12,10 @@ let fStatus = 'all';
 let fCity = 'all';
 let fSearch = '';
 
+// Variables pour le modal Avertir
+let currentWarnUserId = null;
+let currentWarnPostId = null;
+
 // Initialisation des villes dans le filtre admin
 populateCitySelect("admin-filter-city", { includeAll: true, defaultText: "Toutes les villes" });
 
@@ -60,6 +64,50 @@ window.ignorerSignalements = async function(postId) {
         if (window.showToast) window.showToast("Signalements ignorés.");
     } catch (error) {
         console.error("Erreur ignore signalements :", error);
+    }
+};
+
+/**
+ * SYSTÈME D'ALERTES PRÉVENTIVES
+ */
+window.openWarnModal = function(userId, postId) {
+    currentWarnUserId = userId;
+    currentWarnPostId = postId;
+    document.getElementById("modal-warn").classList.add("show");
+};
+
+window.closeWarnModal = function() {
+    currentWarnUserId = null;
+    currentWarnPostId = null;
+    document.getElementById("modal-warn").classList.remove("show");
+};
+
+window.confirmSendAlert = async function() {
+    if (!currentWarnUserId || !currentWarnPostId) return;
+    
+    const motif = document.getElementById("warn-motif").value;
+    
+    try {
+        // 1. Ajouter l'alerte dans la collection Alerts
+        await addDoc(collection(db, "alerts"), {
+            destinataireId: currentWarnUserId,
+            postId: currentWarnPostId,
+            motif: motif,
+            date: serverTimestamp(),
+            lu: false
+        });
+
+        // 2. Marquer le post comme 'sous_surveillance'
+        const postRef = doc(db, "posts", currentWarnPostId);
+        await updateDoc(postRef, {
+            status: "sous_surveillance",
+            averti: true
+        });
+
+        if (window.showToast) window.showToast("Alerte préventive envoyée !");
+        closeWarnModal();
+    } catch (error) {
+        console.error("Erreur envoi alerte :", error);
     }
 };
 
@@ -121,7 +169,7 @@ function applyDomFilters() {
         // Condition Statut
         let matchStatus = fStatus === 'all';
         if (fStatus === 'active') matchStatus = status === 'active';
-        if (fStatus === 'flagged') matchStatus = (reports > 0 || status === 'blocked');
+        if (fStatus === 'flagged') matchStatus = (reports > 0 || status === 'blocked' || status === 'sous_surveillance');
         if (fStatus === 'deleted') matchStatus = status === 'deleted';
         if (fStatus === 'pending') matchStatus = status === 'en_attente';
 
@@ -163,12 +211,16 @@ function renderAllTableRows() {
         if (st === 'en_attente') { statusText = "En attente"; statusClass = "badge-flagged"; }
         if (st === 'deleted') { statusText = "Supprimé"; statusClass = "badge-removed"; }
         if (st === 'blocked') { statusText = "Signalé"; statusClass = "badge-flagged"; }
-        if ((data.reportsCount || 0) > 0) { statusText = `Signalé (${data.reportsCount})`; statusClass = "badge-flagged"; }
+        if (st === 'sous_surveillance') { statusText = "Surveillé"; statusClass = "badge-flagged"; }
+        if ((data.reportsCount || 0) > 0 && st !== 'blocked') { 
+            statusText = `Signalé (${data.reportsCount})`; 
+            statusClass = "badge-flagged"; 
+        }
 
         const searchPool = `${title} ${data.category || ''} ${data.description || ''}`.toLowerCase();
 
         const tr = document.createElement("tr");
-        tr.dataset.status = st;
+        tr.dataset.status = (st === 'blocked' || st === 'sous_surveillance' || (data.reportsCount || 0) > 0) ? 'flagged' : (st === 'deleted' ? 'deleted' : 'active');
         tr.dataset.city = data.city || 'all';
         tr.dataset.reports = data.reportsCount || 0;
         tr.dataset.search = searchPool;
@@ -186,7 +238,10 @@ function renderAllTableRows() {
             <td>
                 <div class="actions-cell">
                     ${st === 'en_attente' ? `<button class="act-btn" onclick="adminApprovePost('${data.id}')">Approuver</button>` : ''}
-                    ${(data.reportsCount || 0) > 0 ? `<button class="act-btn warn-btn" onclick="ignorerSignalements('${data.id}')">Ignorer</button>` : ''}
+                    ${((data.reportsCount || 0) > 0 || st === 'blocked') ? `
+                        <button class="act-btn warn-btn" onclick="ignorerSignalements('${data.id}')">Ignorer</button>
+                        <button class="act-btn warn-btn" onclick="openWarnModal('${data.authorUid}', '${data.id}')">Avertir</button>
+                    ` : ''}
                     
                     ${(st === 'active' || st === 'en_attente') ? `<button class="act-btn" onclick="adminToggleSignal('${data.id}', '${st}')">Signaler</button>` : ''}
                     ${st === 'blocked' ? `<button class="act-btn" onclick="adminToggleSignal('${data.id}', 'blocked')">Activer</button>` : ''}
@@ -198,13 +253,12 @@ function renderAllTableRows() {
         pubBody.appendChild(tr);
     });
 
-    // Re-appliqer les filtres sur les nouvelles lignes
     applyDomFilters();
 }
 
 function updateAdminStats() {
     const pending = allPosts.filter(p => (p.status || 'active') === 'en_attente').length;
-    const flagged = allPosts.filter(p => (p.reportsCount || 0) > 0).length;
+    const flagged = allPosts.filter(p => (p.reportsCount || 0) > 0 || p.status === 'blocked').length;
 
     const badgePending = document.getElementById("badge-pending-count");
     if (badgePending) {

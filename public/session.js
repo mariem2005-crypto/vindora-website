@@ -38,6 +38,58 @@ function setupNotificationListener(userUid) {
     });
 }
 
+/**
+ * SYSTÈME D'ALERTES PRÉVENTIVES
+ * Écoute les alertes administratives pour l'utilisateur.
+ */
+function setupAlertListener(userUid) {
+    const alertsRef = collection(db, "alerts");
+    const q = query(
+        alertsRef,
+        where("destinataireId", "==", userUid),
+        where("lu", "==", false)
+    );
+
+    onSnapshot(q, (snapshot) => {
+        // Supprimer la bannière existante si elle existe
+        const existingBanner = document.getElementById("vindora-alert-banner");
+        if (existingBanner) existingBanner.remove();
+
+        if (!snapshot.empty) {
+            const alertData = snapshot.docs[0].data();
+            const alertId = snapshot.docs[0].id;
+            injectAlertBanner(alertData.motif, alertId);
+        }
+    });
+}
+
+function injectAlertBanner(motif, alertId) {
+    const banner = document.createElement("div");
+    banner.id = "vindora-alert-banner";
+    banner.innerHTML = `
+        <div style="background: #FFF7ED; border-bottom: 2px solid #F59E0B; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="background: #F59E0B; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">!</div>
+                <div>
+                    <strong style="color: #9A3412; font-size: 14px; display: block;">ALERTE PRÉVENTIVE : Risque de sanction</strong>
+                    <span style="color: #C2410C; font-size: 13px;">Motif : ${motif}. Veuillez corriger vos publications pour éviter un blocage définitif.</span>
+                </div>
+            </div>
+            <button id="close-alert-btn" style="background: #FDE68A; border: none; color: #9A3412; padding: 6px 15px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 12px; transition: 0.2s;">
+                J'ai compris
+            </button>
+        </div>
+    `;
+    document.body.prepend(banner);
+
+    document.getElementById("close-alert-btn").onclick = async () => {
+        try {
+            await updateDoc(doc(db, "alerts", alertId), { lu: true });
+            banner.remove();
+        } catch (e) { console.error("Erreur lecture alerte :", e); }
+    };
+}
+
 onAuthStateChanged(auth, async (user) => {
     const path = window.location.pathname.toLowerCase();
     const isPublicPage = path.endsWith("index.html") || path.endsWith("/") || path.includes("login");
@@ -58,8 +110,9 @@ onAuthStateChanged(auth, async (user) => {
                 // Hydratation UI : Initiales, Nom complet et formulaire
                 updateUIProfile(userData);
 
-                // Activer l'écoute des notifications en temps réel
+                // Activer l'écoute des notifications et alertes en temps réel
                 setupNotificationListener(user.uid);
+                setupAlertListener(user.uid);
 
                 // Règles de redirection et de sécurité (Session de Garde)
                 if (isPublicPage) {
