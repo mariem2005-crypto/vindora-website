@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Vindora — Accueil</title>
+  <link rel="icon" href="data:,">
   <link
     href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap"
     rel="stylesheet" />
@@ -997,44 +998,12 @@
       <div class="filter-section">
         <div class="filter-label">Ville</div>
         <div class="filter-options" id="filter-ville">
-          <div class="filter-opt" data-filter="ville" data-value="all-ville"
+          <div class="filter-opt active" data-filter="ville" data-value="all-ville"
             onclick="applyFilter('ville', 'all-ville', this)">
             <span class="dot" style="background: var(--blue)"></span>
             Toutes les villes
           </div>
-          <div class="filter-opt" data-filter="ville" data-value="Tunis" onclick="applyFilter('ville', 'Tunis', this)">
-            <span class="dot" style="background: #3B3BDB"></span>
-            Tunis
-            <span class="filter-count">3</span>
-          </div>
-          <div class="filter-opt" data-filter="ville" data-value="Sfax" onclick="applyFilter('ville', 'Sfax', this)">
-            <span class="dot" style="background: #00C9A7"></span>
-            Sfax
-            <span class="filter-count">1</span>
-          </div>
-          <div class="filter-opt" data-filter="ville" data-value="Sousse"
-            onclick="applyFilter('ville', 'Sousse', this)">
-            <span class="dot" style="background: #F59E0B"></span>
-            Sousse
-            <span class="filter-count">1</span>
-          </div>
-          <div class="filter-opt" data-filter="ville" data-value="Bizerte"
-            onclick="applyFilter('ville', 'Bizerte', this)">
-            <span class="dot" style="background: #EC4899"></span>
-            Bizerte
-            <span class="filter-count">1</span>
-          </div>
-          <div class="filter-opt" data-filter="ville" data-value="Nabeul"
-            onclick="applyFilter('ville', 'Nabeul', this)">
-            <span class="dot" style="background: #8B5CF6"></span>
-            Nabeul
-            <span class="filter-count">0</span>
-          </div>
-          <div class="filter-opt" data-filter="ville" data-value="Gabès" onclick="applyFilter('ville', 'Gabès', this)">
-            <span class="dot" style="background: #10B981"></span>
-            Gabès
-            <span class="filter-count">0</span>
-          </div>
+          <!-- Les villes seront injectées ici par locationService.js -->
         </div>
       </div>
 
@@ -1092,6 +1061,7 @@
   <script type="module">
     import { db } from "./firebase-config.js";
     import { collection, query, where, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+    import { getVilles } from "./locationService.js";
 
     // 1) État Globlal
     const postsRef = collection(db, "posts");
@@ -1101,9 +1071,30 @@
     let currentPage = 1;
 
     // 2) Récupération des données (Une seule fois, en temps réel)
-    function initApp() {
+    async function initApp() {
       const loader = document.getElementById('loader');
-      // On écoute tout ce qui est approuvé (Requête simple = Pas d'erreur d'index)
+
+      // Chargement dynamique des villes pour le filtre
+      const villes = await getVilles();
+      const villeContainer = document.getElementById('filter-ville');
+      if (villeContainer) {
+        const colors = ['#3B3BDB', '#00C9A7', '#F59E0B', '#EC4899', '#8B5CF6', '#10B981', '#3F67E1'];
+        villes.forEach((v, i) => {
+          const div = document.createElement('div');
+          div.className = 'filter-opt';
+          div.dataset.filter = 'ville';
+          div.dataset.value = v;
+          div.onclick = function() { window.applyFilter('ville', v, this); };
+          div.innerHTML = `
+            <span class="dot" style="background: ${colors[i % colors.length]}"></span>
+            ${v}
+            <span class="filter-count">0</span>
+          `;
+          villeContainer.appendChild(div);
+        });
+      }
+
+      // On écoute tout ce qui est approuvé
       const q = query(postsRef, where("status", "in", ["active", "approved"]), orderBy("createdAt", "desc"));
 
       onSnapshot(q, (snapshot) => {
@@ -1121,8 +1112,8 @@
       return allPostsData.filter(post => {
         // Normalisation du statut (gère français et anglais)
         const typeRaw = (post.postType || post.type || '').toLowerCase();
-        const normType = (typeRaw === 'perdu' || typeRaw === 'lost') ? 'lost' : 
-                         (typeRaw === 'trouvé' || typeRaw === 'found') ? 'found' : '';
+        const normType = (typeRaw === 'perdu' || typeRaw === 'lost') ? 'lost' :
+          (typeRaw === 'trouvé' || typeRaw === 'found') ? 'found' : '';
 
         const matchStatut = (activeFilters.statut === 'all' || normType === activeFilters.statut);
         const matchCat = (activeFilters.categorie === 'all-cat' || post.category === activeFilters.categorie);
@@ -1202,7 +1193,7 @@
             </div>`;
           grid.appendChild(card);
         });
-        
+
         buildPagination(totalPages);
       }
       document.querySelector('.result-count span').textContent = filtered.length;
@@ -1216,11 +1207,11 @@
         const btn = document.createElement('button');
         btn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
         btn.textContent = i;
-        btn.onclick = (e) => { 
-            e.stopPropagation();
-            currentPage = i; 
-            window.scrollTo({ top: 300, behavior: 'smooth' }); 
-            refreshUI(); 
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          currentPage = i;
+          window.scrollTo({ top: 300, behavior: 'smooth' });
+          refreshUI();
         };
         container.appendChild(btn);
       }
