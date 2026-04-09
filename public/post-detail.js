@@ -89,8 +89,19 @@ function injectPostData(data) {
     if (imgEl) {
         if (data.imageUrl) {
             imgEl.style.backgroundImage = `url('${data.imageUrl}')`;
+            imgEl.style.backgroundColor = "transparent";
         } else {
-            imgEl.innerHTML = "<div style='font-size:40px; opacity:0.3'>📷</div>";
+            // Ne PAS faire innerHTML ici car cela supprime les boutons (Like/Share)
+            imgEl.style.backgroundColor = "var(--bg)";
+            imgEl.style.backgroundImage = "none";
+            // On peut ajouter une icône via un élément dédié s'il n'existe pas déjà
+            if (!imgEl.querySelector('.placeholder-icon')) {
+                const icon = document.createElement('div');
+                icon.className = 'placeholder-icon';
+                icon.innerHTML = "📷";
+                icon.style = "position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:40px; opacity:0.3; pointer-events:none;";
+                imgEl.appendChild(icon);
+            }
         }
     }
 
