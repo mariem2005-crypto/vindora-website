@@ -145,8 +145,8 @@ async function loadSimilarPosts(category, currentId) {
                 item.onclick = () => window.location.href = `post-detail.html?id=${docSnap.id}`;
                 
                 item.innerHTML = `
-                    <div class="related-thumb" style="background: var(--bg)">
-                        <img src="${data.imageUrl || 'https://via.placeholder.com/50'}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">
+                    <div class="related-thumb" style="background: var(--grad-soft); display:flex; align-items:center; justify-content:center;">
+                        ${data.imageUrl ? `<img src="${data.imageUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">` : `<span style="font-size:20px; opacity:0.3;">📦</span>`}
                     </div>
                     <div class="related-info">
                         <div class="related-title">${data.title}</div>
@@ -171,6 +171,12 @@ async function loadSimilarPosts(category, currentId) {
  * COMMENTAIRES
  */
 window.sendComment = async () => {
+    // Sécurité : Vérifier que les données du post sont chargées
+    if (!currentPostData || !postId) {
+        if (window.showToast) window.showToast("Données du post non chargées. Réessayez.");
+        return;
+    }
+
     if (!window.currentUser) {
         if (window.showToast) window.showToast("Vous devez être connecté pour commenter.");
         return;
@@ -216,7 +222,10 @@ function listenToComments() {
             const data = docSnap.data();
             const date = data.createdAt ? data.createdAt.toDate().toLocaleString("fr-FR", { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : "À l'instant";
             
-            const initials = data.authorName ? data.authorName.split(" ").map(n => n[0]).join("").toUpperCase() : "??";
+            let authorDisplay = data.authorName || "Utilisateur inconnu";
+            if (authorDisplay.includes("undefined")) authorDisplay = "Utilisateur inconnu";
+            
+            const initials = authorDisplay !== "Utilisateur inconnu" ? authorDisplay.split(" ").map(n => n[0]).join("").toUpperCase() : "??";
             const isOwner = data.authorUid === currentPostData.authorUid;
 
             const div = document.createElement("div");
@@ -225,7 +234,7 @@ function listenToComments() {
                 <div class="comment-av" style="background: var(--grad)">${initials}</div>
                 <div class="comment-content">
                     <div class="comment-header">
-                        <span class="comment-name">${data.authorName}</span>
+                        <span class="comment-name">${authorDisplay}</span>
                         <span class="comment-time">${date}</span>
                         ${isOwner ? '<span class="comment-owner">Auteur</span>' : ''}
                     </div>

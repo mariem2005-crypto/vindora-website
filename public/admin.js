@@ -147,10 +147,9 @@ async function loadAllUsers() {
             const data = documentSnapshot.data();
             const docId = documentSnapshot.id;
 
-            const prenom = data.prenom || "";
-            const nom = data.nom || "";
-            const fullName = prenom + " " + nom;
-            const initiales = (prenom.charAt(0) + nom.charAt(0)).toUpperCase() || "?";
+            let fullName = (data.prenom || "") + " " + (data.nom || "");
+            fullName = fullName.trim() || "Utilisateur inconnu";
+            const initiales = (data.prenom ? data.prenom.charAt(0) : "") + (data.nom ? data.nom.charAt(0) : "") || "?";
             const email = data.email || "Email inconnu";
             const role = data.role || "user";
             
