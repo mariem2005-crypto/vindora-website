@@ -1,20 +1,22 @@
-console.log("Loading post-detail.js");
-
 import { auth, db } from "./firebase-config.js";
-import { doc, getDoc, collection, addDoc, onSnapshot, query, orderBy, updateDoc, arrayUnion, arrayRemove, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { 
+    doc, getDoc, getDocs, collection, addDoc, onSnapshot, query, where, orderBy, limit, 
+    updateDoc, arrayUnion, arrayRemove, serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
 const urlParams = new URLSearchParams(window.location.search);
 const postId = urlParams.get('id');
 
 let currentPostData = null;
-let currentUser = null;
+let currentAuthorData = null;
 
-// Initialize Auto-fetch
+/**
+ * INITIALISATION : Récupération du post et de ses dépendances
+ */
 async function initPostDetail() {
     if (!postId) {
-        console.warn("No Post ID provided in URL, redirecting...");
-        window.location.href = "index.html";
+        window.location.href = "home.html";
         return;
     }
 
@@ -23,276 +25,293 @@ async function initPostDetail() {
         const postSnap = await getDoc(postRef);
 
         if (!postSnap.exists()) {
-            console.error("Post not found, redirecting...");
-            window.location.href = "index.html";
+            window.location.href = "home.html";
             return;
         }
 
-        currentPostData = postSnap.data();
+        currentPostData = { id: postSnap.id, ...postSnap.data() };
+        
+        // 1. Injecter les données du post immédiatement
         injectPostData(currentPostData);
+
+        // 2. Charger les données de l'auteur (Profil complet)
+        if (currentPostData.authorUid) {
+            loadAuthorProfile(currentPostData.authorUid);
+        }
+
+        // 3. Charger les publications similaires
+        loadSimilarPosts(currentPostData.category, postSnap.id);
+
+        // 4. Écouter les commentaires en temps réel
         listenToComments();
 
     } catch (error) {
-        console.error("Error fetching post details:", error);
+        console.error("Error initPostDetail:", error);
     }
 }
 
-// Inject Firestore Data to DOM
+/**
+ * INJECTION DES DONNÉES DU POST DANS LE DOM
+ */
 function injectPostData(data) {
-    // Basic Details
-    setText("detail-title", data.title || "Titre introuvable");
-    setText("detail-category", data.category || "Inconnu");
-    setText("detail-type", data.objType || data.obj || "Autre");
-    setText("detail-category-grid", data.category || "Inconnu");
-    setText("detail-city", data.city || "Non spécifié");
-    setText("detail-desc", data.description || "Aucune description fournie.");
+    const setText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val || "N/A";
+    };
 
-    // Date calculations
-    let dateStr = "Récemment";
-    let publishStr = "Récemment";
+    setText("detail-title", data.title);
+    setText("breadcrumb-title", data.title);
+    setText("detail-category", data.category);
+    setText("breadcrumb-category", data.category);
+    setText("detail-category-grid", data.category);
+    setText("detail-type", data.postType === "lost" || data.postType === "perdu" ? "Objet Perdu" : "Objet Trouvé");
+    setText("detail-city", data.city);
+    setText("detail-desc", data.description || data.content);
+
+    // Dates
     if (data.createdAt) {
-        const dateObj = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
-        dateStr = dateObj.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
-        publishStr = dateStr;
+        const date = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+        const formattedDate = date.toLocaleDateString("fr-FR", { day: '2-digit', month: 'short', year: 'numeric' });
+        setText("detail-date", formattedDate);
+        setText("detail-publish-time", formattedDate);
     }
-    setText("detail-date", dateStr);
-    setText("detail-publish-time", publishStr);
 
-    // Badge styling (Perdu vs Trouvé)
-    const badgeEl = document.getElementById("detail-badge");
-    if (badgeEl) {
-        const type = String(data.postType).toLowerCase();
-        if (type === "lost" || type === "perdu") {
-            badgeEl.className = "post-badge badge-lost";
-            badgeEl.textContent = "Perdu";
+    // Badge
+    const badge = document.getElementById("detail-badge");
+    if (badge) {
+        const isLost = data.postType === "lost" || data.postType === "perdu";
+        badge.className = `post-badge ${isLost ? 'badge-lost' : 'badge-found'}`;
+        badge.textContent = isLost ? "Perdu" : "Trouvé";
+    }
+
+    // Image
+    const imgEl = document.getElementById("detail-image");
+    if (imgEl) {
+        if (data.imageUrl) {
+            imgEl.style.backgroundImage = `url('${data.imageUrl}')`;
         } else {
-            badgeEl.className = "post-badge badge-found";
-            badgeEl.textContent = "Trouvé";
+            imgEl.innerHTML = "<div style='font-size:40px; opacity:0.3'>📷</div>";
         }
     }
 
-    // Image Background
-    const imgEl = document.getElementById("detail-image");
-    if (imgEl) {
-        const url = data.imageUrl || "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?w=500&auto=format&fit=crop&q=60";
-        imgEl.style.backgroundImage = `url('${url}')`;
-        imgEl.style.backgroundColor = "var(--bg)";
-    }
-
-    // Author Basic Injection
-    setText("detail-author-name", data.authorName || "Anonyme");
-    
-    // Heart Status Refresh
     refreshLikeUI();
 }
 
-function setText(id, text) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = text;
+/**
+ * CHARGEMENT DU PROFIL DE L'AUTEUR
+ */
+async function loadAuthorProfile(uid) {
+    try {
+        const userRef = doc(db, "users", uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+            currentAuthorData = userSnap.data();
+            const fullName = `${currentAuthorData.prenom} ${currentAuthorData.nom}`;
+            document.getElementById("detail-author-name").textContent = fullName;
+            
+            const initials = (currentAuthorData.prenom.charAt(0) + currentAuthorData.nom.charAt(0)).toUpperCase();
+            document.getElementById("detail-author-av").textContent = initials;
+        }
+    } catch (error) {
+        console.error("Error loading author profile:", error);
+    }
 }
 
-// ====== INTERACTIONS TRIGGERED FROM HTML ========
-
-// WhatsApp Linking
-window.contactAuthor = () => {
-    if (!currentPostData || !currentPostData.contact) {
-        if (window.showToast) window.showToast("Ce post n'a pas de contact lié.");
-        return;
-    }
-    
-    const c = currentPostData.contact.replace(/\s+/g, "");
-    // Automatically open wa.me, passing the user contact. Adding 216 natively.
-    // Ensure if they typed +216 or 00216 we cleanly manage it, simple assumption: purely domestic digits
-    let link = `https://wa.me/216${c}`;
-    if (c.startsWith("+") || c.startsWith("216")) {
-         link = `https://wa.me/${c}`;
-    }
-    
-    window.open(link, '_blank');
-};
-
-// Likes System 
-window.toggleFav = async () => {
-    if (!currentUser) {
-        if (window.showToast) window.showToast("Veuillez vous authentifier pour liker.");
-        return;
-    }
-    if (!currentPostData) return;
-
-    // Check if user previously liked
-    const uid = currentUser.uid;
-    let likesArr = currentPostData.likes || [];
-    const isLiked = likesArr.includes(uid);
-    
-    const postRef = doc(db, "posts", postId);
+/**
+ * PUBLICATIONS SIMILAIRES
+ */
+async function loadSimilarPosts(category, currentId) {
+    const listEl = document.getElementById("similar-posts-list");
+    if (!listEl) return;
 
     try {
-        if (isLiked) {
-            // Un-like
-            await updateDoc(postRef, {
-                likes: arrayRemove(uid)
-            });
-            likesArr = likesArr.filter(i => i !== uid);
-        } else {
-            // Like
-            await updateDoc(postRef, {
-                likes: arrayUnion(uid)
-            });
-            likesArr.push(uid);
+        const postsRef = collection(db, "posts");
+        const q = query(
+            postsRef, 
+            where("category", "==", category), 
+            limit(10)
+        );
 
-            // FIRE NOTIFICATION
-            createNotification(currentPostData.authorUid, 'alert', `${currentUser.displayName || "Quelqu'un"} a ajouté votre objet "${currentPostData.title || ""}" à ses favoris.`);
+        const querySnapshot = await getDocs(q);
+
+        let count = 0;
+        listEl.innerHTML = "";
+
+        querySnapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            if (docSnap.id !== currentId && count < 3) {
+                const item = document.createElement("div");
+                item.className = "related-item";
+                item.onclick = () => window.location.href = `post-detail.html?id=${docSnap.id}`;
+                
+                item.innerHTML = `
+                    <div class="related-thumb" style="background: var(--bg)">
+                        <img src="${data.imageUrl || 'https://via.placeholder.com/50'}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">
+                    </div>
+                    <div class="related-info">
+                        <div class="related-title">${data.title}</div>
+                        <div class="related-meta">${data.city} · ${data.category}</div>
+                    </div>
+                `;
+                listEl.appendChild(item);
+                count++;
+            }
+        });
+
+        if (count === 0) {
+            listEl.innerHTML = "<p style='font-size:12px; color:var(--ink-light)'>Aucune publication similaire.</p>";
         }
 
-        // Optimistically update local array reference for UI
-        currentPostData.likes = likesArr;
-        refreshLikeUI();
-
-    } catch (e) {
-        console.error("Error toggling favorite", e);
-    }
-};
-
-function refreshLikeUI() {
-    if (!currentPostData) return;
-    const btn = document.getElementById("fav-btn");
-    const icon = document.getElementById("fav-icon");
-    const count = document.getElementById("fav-count");
-    if (!btn || !icon || !count) return;
-
-    let likesArr = currentPostData.likes || [];
-    count.textContent = `(${likesArr.length})`;
-
-    if (currentUser && likesArr.includes(currentUser.uid)) {
-        icon.style.fill = '#E03B3B';
-        icon.style.stroke = '#E03B3B';
-        btn.classList.add('liked');
-    } else {
-        icon.style.fill = 'none';
-        icon.style.stroke = 'currentColor';
-        btn.classList.remove('liked');
+    } catch (error) {
+        console.error("Error loadSimilarPosts:", error);
     }
 }
 
-// Comments System
+/**
+ * COMMENTAIRES
+ */
 window.sendComment = async () => {
-    if (!currentUser) {
-        if (window.showToast) window.showToast("Veuillez vous authentifier pour commenter.");
+    if (!window.currentUser) {
+        if (window.showToast) window.showToast("Vous devez être connecté pour commenter.");
         return;
     }
-    
-    const input = document.getElementById('new-comment');
-    if (!input) return;
 
-    const val = input.value.trim();
-    if (!val) return;
+    const input = document.getElementById("new-comment");
+    const text = input.value.trim();
+    if (!text) return;
 
     try {
-        // Clear box
-        input.value = '';
-
-        // Dispatch comment creation into posts -> {postId} -> comments
         const commRef = collection(db, "posts", postId, "comments");
         await addDoc(commRef, {
-            postId: postId,
-            postTitle: currentPostData.title || "Titre inconnu",
-            postOwnerUid: currentPostData.authorUid || "",
-            authorUid: currentUser.uid,
-            authorName: currentUser.displayName || currentUser.prenom + " " + currentUser.nom || "Utilisateur Vindora",
-            text: val,
+            text: text,
+            authorUid: window.currentUser.uid,
+            authorName: `${window.currentUser.prenom} ${window.currentUser.nom}`,
             createdAt: serverTimestamp()
         });
 
-        if (window.showToast) window.showToast("Commentaire envoyé !");
-
-        // FIRE NOTIFICATION TO AUTHOR
-        createNotification(currentPostData.authorUid, 'comment', `${currentUser.displayName || "Quelqu'un"} a commenté votre publication "${currentPostData.title}".`);
-
+        input.value = "";
+        if (window.showToast) window.showToast("Commentaire ajouté !");
     } catch (error) {
-        console.error("Error submitting comment:", error);
+        console.error("Error sendComment:", error);
     }
 };
 
-// Snapshot Listener for Comments
 function listenToComments() {
     const commRef = collection(db, "posts", postId, "comments");
-    const q = query(commRef, orderBy("createdAt", "asc"));
+    const q = query(commRef, orderBy("createdAt", "desc"));
 
     onSnapshot(q, (snapshot) => {
         const listEl = document.getElementById("comments-list");
+        const countEl = document.querySelector(".comments-count");
         if (!listEl) return;
-        listEl.innerHTML = ""; // Clear existing render
 
-        const counterEl = document.querySelector(".comments-count");
-        if (counterEl) counterEl.textContent = snapshot.size;
+        listEl.innerHTML = "";
+        if (countEl) countEl.textContent = snapshot.size;
 
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
-            const timeStr = data.createdAt ? 
-                data.createdAt.toDate().toLocaleDateString("fr-FR", { 
-                    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" 
-                }) 
-                : "À l'instant";
+            const date = data.createdAt ? data.createdAt.toDate().toLocaleString("fr-FR", { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : "À l'instant";
             
-            const auName = data.authorName || "Anonyme";
-            // Make badge purely stylistic (initials)
-            const initials = auName.substring(0, 2).toUpperCase();
+            const initials = data.authorName ? data.authorName.split(" ").map(n => n[0]).join("").toUpperCase() : "??";
+            const isOwner = data.authorUid === currentPostData.authorUid;
 
-            // Author ownership badge tag dynamically
-            const authorTag = (currentPostData && currentPostData.authorUid === data.authorUid) 
-                ? `<span class="comment-owner">Auteur</span>` 
-                : '';
-
-            const item = document.createElement('div');
-            item.className = 'comment-item';
-            item.innerHTML = `
+            const div = document.createElement("div");
+            div.className = "comment-item";
+            div.innerHTML = `
                 <div class="comment-av" style="background: var(--grad)">${initials}</div>
                 <div class="comment-content">
                     <div class="comment-header">
-                    <span class="comment-name">${auName}</span>
-                    <span class="comment-time">${timeStr}</span>
-                    ${authorTag}
+                        <span class="comment-name">${data.authorName}</span>
+                        <span class="comment-time">${date}</span>
+                        ${isOwner ? '<span class="comment-owner">Auteur</span>' : ''}
                     </div>
                     <div class="comment-text">${data.text}</div>
                 </div>
             `;
-            listEl.appendChild(item);
+            listEl.appendChild(div);
         });
-
-        // Autoscroll bottom optionally...
-    }, error => {
-        console.error("Erreur de récupération des commentaires :", error);
     });
 }
 
-// ====== NOTIFICATIONS SUB-ROUTINE ======
-async function createNotification(recipientUid, type, message) {
-    if (!recipientUid || !currentUser) return;
-    
-    // Prevent notifying ourselves for our own actions
-    if (recipientUid === currentUser.uid) return;
-    
+/**
+ * CONTACT
+ */
+window.contactAuthor = () => {
+    if (!currentAuthorData) {
+        if (window.showToast) window.showToast("Informations de contact indisponibles.");
+        return;
+    }
+
+    const phone = currentAuthorData.phone;
+    const email = currentAuthorData.email;
+
+    if (phone) {
+        const cleanPhone = phone.replace(/\s+/g, '').replace('+', '');
+        const waLink = `https://wa.me/${cleanPhone.length >= 8 && !cleanPhone.startsWith('216') ? '216' + cleanPhone : cleanPhone}`;
+        window.open(waLink, '_blank');
+    } else if (email) {
+        window.location.href = `mailto:${email}?subject=Vindora : Concernant votre annonce ${currentPostData.title}`;
+    } else {
+        if (window.showToast) window.showToast("Aucun moyen de contact trouvé.");
+    }
+};
+
+/**
+ * FAVORIS (LIKES)
+ */
+window.toggleFav = async () => {
+    if (!window.currentUser) {
+        if (window.showToast) window.showToast("Connectez-vous pour liker.");
+        return;
+    }
+
+    const postRef = doc(db, "posts", postId);
+    const isLiked = currentPostData.likes && currentPostData.likes.includes(window.currentUser.uid);
+
     try {
-        await addDoc(collection(db, "notifications"), {
-            userUid: recipientUid,
-            type: type, // 'alert', 'comment', etc. 
-            message: message,
-            createdAt: serverTimestamp(),
-            status: "unread",
-            read: false,
-            fromUid: currentUser.uid,
-            postId: postId
-        });
+        if (isLiked) {
+            await updateDoc(postRef, { likes: arrayRemove(window.currentUser.uid) });
+            currentPostData.likes = currentPostData.likes.filter(id => id !== window.currentUser.uid);
+        } else {
+            await updateDoc(postRef, { likes: arrayUnion(window.currentUser.uid) });
+            if (!currentPostData.likes) currentPostData.likes = [];
+            currentPostData.likes.push(window.currentUser.uid);
+        }
+        refreshLikeUI();
     } catch (e) {
-        console.error("Failed executing notification dispatch", e);
+        console.error("Error toggleFav:", e);
+    }
+};
+
+function refreshLikeUI() {
+    const btn = document.getElementById("fav-btn");
+    const icon = document.getElementById("fav-icon");
+    const countEl = document.getElementById("fav-count");
+    if (!btn || !icon) return;
+
+    const likes = currentPostData.likes || [];
+    if (countEl) countEl.textContent = `(${likes.length})`;
+
+    if (window.currentUser && likes.includes(window.currentUser.uid)) {
+        btn.classList.add("liked");
+        icon.style.fill = "#E03B3B";
+        icon.style.stroke = "#E03B3B";
+    } else {
+        btn.classList.remove("liked");
+        icon.style.fill = "none";
+        icon.style.stroke = "currentColor";
     }
 }
 
-// Authentication Bootstrap
-onAuthStateChanged(auth, user => {
-    currentUser = user;
-    refreshLikeUI(); // Re-trigger mapping so heart illuminates correctly if they logged in post-load.
+// Initialisation
+onAuthStateChanged(auth, (user) => {
+    setTimeout(() => {
+        refreshLikeUI();
+        if (window.currentUser) {
+            const commAv = document.querySelector(".add-comment .comment-avatar");
+            if (commAv) commAv.textContent = (window.currentUser.prenom[0] + window.currentUser.nom[0]).toUpperCase();
+        }
+    }, 500);
 });
 
-// START
 initPostDetail();

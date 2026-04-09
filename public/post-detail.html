@@ -297,9 +297,9 @@
 <div class="breadcrumb">
   <a href="home.html">Accueil</a>
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-  <a href="home.html">Électronique</a>
+  <a href="home.html" id="breadcrumb-category">Catégorie</a>
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-  <span style="color:var(--ink)">iPhone 14 Pro</span>
+  <span style="color:var(--ink)" id="breadcrumb-title">Titre du post</span>
 </div>
 
 <!-- MAIN -->
@@ -451,29 +451,8 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         Publications similaires
       </div>
-
-      <div class="related-item" onclick="window.location.href='post-detail.html'">
-        <div class="related-thumb" style="background:#F5F3FF"><svg class="obj-icon" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="10" fill="#F5F3FF"/><rect x="7" y="8" width="18" height="12" rx="2" stroke="#8B5CF6" stroke-width="1.8"/><rect x="10" y="11" width="12" height="6" rx="1" fill="#8B5CF6" opacity="0.15"/><path d="M5 20h22l-1.5 3.5H7.5L5 20z" fill="#8B5CF6" opacity="0.2" stroke="#8B5CF6" stroke-width="1.5"/></svg></div>
-        <div class="related-info">
-          <div class="related-title">MacBook Air — Gris Sidéral</div>
-          <div class="related-meta">Tunis · Il y a 2 jours</div>
-        </div>
-      </div>
-
-      <div class="related-item" onclick="window.location.href='post-detail.html'">
-        <div class="related-thumb" style="background:#EEF2FF"><svg class="obj-icon" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="10" fill="#EEF2FF"/><path d="M10 18v-4a6 6 0 0 1 12 0v4" stroke="#3B3BDB" stroke-width="1.8" fill="none"/><rect x="7" y="17" width="4" height="6" rx="2" stroke="#3B3BDB" stroke-width="1.8"/><rect x="21" y="17" width="4" height="6" rx="2" stroke="#3B3BDB" stroke-width="1.8"/></svg></div>
-        <div class="related-info">
-          <div class="related-title">AirPods Pro — Blanc</div>
-          <div class="related-meta">Tunis · Il y a 3 jours</div>
-        </div>
-      </div>
-
-      <div class="related-item" onclick="window.location.href='post-detail.html'">
-        <div class="related-thumb" style="background:#FFF7ED"><svg class="obj-icon" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="10" fill="#F0FDF8"/><rect x="11" y="9" width="10" height="14" rx="3" stroke="#10B981" stroke-width="1.8"/><path d="M13 9V7h6v2" stroke="#10B981" stroke-width="1.5" stroke-linecap="round"/><path d="M13 23v2h6v-2" stroke="#10B981" stroke-width="1.5" stroke-linecap="round"/><polyline points="16,13 16,16 18,17" stroke="#10B981" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        <div class="related-info">
-          <div class="related-title">Montre Samsung Galaxy Watch</div>
-          <div class="related-meta">Ariana · Il y a 5 jours</div>
-        </div>
+      <div id="similar-posts-list">
+        <!-- Les publications similaires seront chargées ici dynamiquement -->
       </div>
     </div>
 
