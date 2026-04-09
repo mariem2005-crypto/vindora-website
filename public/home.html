@@ -1119,7 +1119,12 @@
     // 3) Filtrage Côté Client (Instantané)
     function getFiltered() {
       return allPostsData.filter(post => {
-        const matchStatut = (activeFilters.statut === 'all' || post.postType === activeFilters.statut || post.type === activeFilters.statut);
+        // Normalisation du statut (gère français et anglais)
+        const typeRaw = (post.postType || post.type || '').toLowerCase();
+        const normType = (typeRaw === 'perdu' || typeRaw === 'lost') ? 'lost' : 
+                         (typeRaw === 'trouvé' || typeRaw === 'found') ? 'found' : '';
+
+        const matchStatut = (activeFilters.statut === 'all' || normType === activeFilters.statut);
         const matchCat = (activeFilters.categorie === 'all-cat' || post.category === activeFilters.categorie);
         const matchVille = (activeFilters.ville === 'all-ville' || post.city === activeFilters.ville);
         const matchSearch = !activeFilters.query ||
