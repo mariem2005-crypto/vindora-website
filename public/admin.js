@@ -6,11 +6,11 @@ import {
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 import { populateCitySelect } from "./locationService.js";
 
-// Global data store for filtering
+// Global data store
 let allPosts = [];
-let currentFilter = 'all'; 
-let currentCity = 'all';
-let searchQuery = '';
+let fStatus = 'all'; 
+let fCity = 'all';
+let fSearch = '';
 
 // Initialisation des villes dans le filtre admin
 populateCitySelect("admin-filter-city", { includeAll: true, defaultText: "Toutes les villes" });
@@ -21,8 +21,8 @@ populateCitySelect("admin-filter-city", { includeAll: true, defaultText: "Toutes
 window.adminDeletePost = async function(postId) {
     if (!confirm("Voulez-vous vraiment supprimer cette publication définitivement ?")) return;
     try {
-        await deleteDoc(doc(db, "posts", postId));
-        if (window.showToast) window.showToast("Publication supprimée.");
+        await updateDoc(doc(db, "posts", postId), { status: "deleted" });
+        if (window.showToast) window.showToast("Publication marquée comme supprimée.");
     } catch (error) {
         console.error("Erreur suppression post :", error);
     }
@@ -41,9 +41,9 @@ window.adminApprovePost = async function(postId) {
 };
 
 window.bloquerPost = async function(postId) {
-    if (!confirm("Bloquer cette publication ? Elle ne sera plus visible.")) return;
+    if (!confirm("Bloquer cette publication ?")) return;
     try {
-        await updateDoc(doc(db, "posts", postId), { status: "blocked" });
+        await updateDoc(doc(db, "posts", postId), { status: "deleted" });
         if (window.showToast) window.showToast("Publication bloquée.");
     } catch (error) {
         console.error("Erreur blocage post :", error);
@@ -63,13 +63,13 @@ window.ignorerSignalements = async function(postId) {
 };
 
 /**
- * ÉCOUTEURS TEMPS RÉEL
+ * ÉCOUTEURS TEMPS RÉEL (onSnapshot)
  */
 function listenToAdminData() {
     const postsRef = collection(db, "posts");
     onSnapshot(postsRef, (snapshot) => {
         allPosts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderFilteredPosts();
+        renderAllTableRows(); 
         updateAdminStats();
     });
 
@@ -77,137 +77,128 @@ function listenToAdminData() {
     onSnapshot(usersRef, (snapshot) => {
         const users = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         renderUsers(users);
-        const userCountEl = document.getElementById("admin-stat-users");
-        if (userCountEl) userCountEl.textContent = users.length;
     });
 }
 
 /**
- * MOTEUR DE FILTRAGE UNIFIÉ
+ * MOTEUR DE FILTRAGE INSTANTANÉ (Toggle DOM)
  */
-window.setAdminFilter = function(filter) {
-    currentFilter = filter;
+window.setAdminFilter = function(status) {
+    fStatus = status;
     
-    // 1. Sync Tabs UI
+    // Sync UI Tabs
     document.querySelectorAll('.stab').forEach(btn => {
-        const typeMatch = btn.getAttribute('onclick').match(/'([^']+)'/);
-        if (typeMatch) {
-            const type = typeMatch[1];
-            btn.classList.toggle('active', type === filter);
-        }
+        const typeMatch = btn.getAttribute('onclick')?.match(/'([^']+)'/);
+        if (typeMatch) btn.classList.toggle('active', typeMatch[1] === status);
     });
 
-    // 2. Sync Dropdown UI
-    const statusSelect = document.getElementById("admin-status-dropdown");
-    if (statusSelect) statusSelect.value = filter;
+    // Sync Dropdown
+    const dropdown = document.getElementById("admin-status-dropdown");
+    if (dropdown) dropdown.value = status;
 
-    renderFilteredPosts();
+    applyDomFilters();
 };
 
 window.setAdminCity = function(city) {
-    currentCity = city === "Toutes les villes" ? "all" : city;
-    renderFilteredPosts();
+    fCity = city === "Toutes les villes" ? "all" : city;
+    applyDomFilters();
 };
 
 window.setAdminSearch = function(query) {
-    searchQuery = query.toLowerCase().trim();
-    renderFilteredPosts();
+    fSearch = query.toLowerCase().trim();
+    applyDomFilters();
 };
 
-function renderFilteredPosts() {
-    const pubBody = document.getElementById("pub-tbody");
-    if (!pubBody) return;
+function applyDomFilters() {
+    const rows = document.querySelectorAll("#pub-tbody tr");
+    rows.forEach(row => {
+        const status = row.dataset.status;
+        const reports = parseInt(row.dataset.reports || 0);
+        const city = row.dataset.city;
+        const searchPool = row.dataset.search;
 
-    let filtered = allPosts;
+        // Condition Statut
+        let matchStatus = fStatus === 'all';
+        if (fStatus === 'active') matchStatus = status === 'active';
+        if (fStatus === 'flagged') matchStatus = reports > 0;
+        if (fStatus === 'deleted') matchStatus = status === 'deleted' || status === 'blocked';
+        if (fStatus === 'pending') matchStatus = status === 'en_attente';
 
-    // 1. Filtre par Statut (Onglets)
-    if (currentFilter === 'pending') {
-        filtered = filtered.filter(p => (p.status || 'active') === 'en_attente');
-    } else if (currentFilter === 'flagged') {
-        filtered = filtered.filter(p => (p.reportsCount || 0) > 0);
-    } else if (currentFilter === 'removed') {
-        filtered = filtered.filter(p => p.status === 'blocked');
-    } else if (currentFilter === 'active') {
-        filtered = filtered.filter(p => (p.status || 'active') === 'active');
-    }
+        // Condition Ville
+        let matchCity = fCity === 'all' || city === fCity;
 
-    // 2. Filtre par Ville
-    if (currentCity !== 'all') {
-        filtered = filtered.filter(p => p.city === currentCity);
-    }
+        // Condition Recherche
+        let matchSearch = !fSearch || searchPool.includes(fSearch);
 
-    // 3. Filtre par Recherche (Titre ou Description)
-    if (searchQuery) {
-        filtered = filtered.filter(p => 
-            (p.title || '').toLowerCase().includes(searchQuery) || 
-            (p.description || '').toLowerCase().includes(searchQuery)
-        );
-    }
-
-    // Tri (Signalés en premier si onglet signalé)
-    if (currentFilter === 'flagged') {
-        filtered.sort((a,b) => (b.reportsCount || 0) - (a.reportsCount || 0));
-    } else {
-        filtered.sort((a,b) => {
-            const d1 = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
-            const d2 = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
-            return d2 - d1;
-        });
-    }
-
-    renderTable(filtered);
-}
-
-function renderTable(data) {
-    const pubBody = document.getElementById("pub-tbody");
-    pubBody.innerHTML = "";
-
-    if (data.length === 0) {
-        pubBody.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:40px; color:var(--ink-light)'>Aucun résultat ne correspond à vos filtres.</td></tr>";
-        return;
-    }
-
-    data.forEach(item => {
-        const title = item.title || "Sans titre";
-        let typeText = item.postType === 'perdu' ? "Perdu" : "Trouvé";
-        let typeClass = item.postType === 'perdu' ? "badge-lost" : "badge-found";
-        const date = item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("fr-FR") : "-";
-        
-        let statusText = "Active";
-        let statusClass = "badge-active";
-        const st = item.status || 'active';
-        if (st === 'en_attente') { statusText = "En attente"; statusClass = "badge-flagged"; }
-        if (st === 'blocked') { statusText = "Bloqué"; statusClass = "badge-removed"; }
-        if ((item.reportsCount || 0) > 0) { statusText = `Signalé (${item.reportsCount})`; statusClass = "badge-flagged"; }
-
-        const html = `
-            <tr>
-                <td>
-                    <div class="post-title-sm">${title}</div>
-                    <div class="post-sub-sm">${item.category || 'Autres'}</div>
-                </td>
-                <td><span class="badge ${typeClass}">${typeText}</span></td>
-                <td>${item.city || 'N/A'}</td>
-                <td style="font-size:11px">${(item.authorPrenom || 'Vindora') + ' ' + (item.authorNom || 'User')}</td>
-                <td>${date}</td>
-                <td><span class="badge ${statusClass}">${statusText}</span></td>
-                <td>
-                    <div class="actions-cell">
-                        ${st === 'en_attente' ? `<button class="act-btn" onclick="adminApprovePost('${item.id}')">Approuver</button>` : ''}
-                        ${(item.reportsCount || 0) > 0 ? `<button class="act-btn warn-btn" onclick="ignorerSignalements('${item.id}')">Ignorer</button>` : ''}
-                        ${st !== 'blocked' ? `<button class="act-btn" onclick="bloquerPost('${item.id}')">Bloquer</button>` : ''}
-                        <button class="act-btn danger" onclick="adminDeletePost('${item.id}')">Supprimer</button>
-                    </div>
-                </td>
-            </tr>
-        `;
-        pubBody.insertAdjacentHTML("beforeend", html);
+        // Affichage final (Logic AND)
+        row.style.display = (matchStatus && matchCity && matchSearch) ? "" : "none";
     });
 }
 
+/**
+ * RENDU COMPLET (Une seule fois par snapshot)
+ */
+function renderAllTableRows() {
+    const pubBody = document.getElementById("pub-tbody");
+    if (!pubBody) return;
+    pubBody.innerHTML = "";
+
+    // Tri par date
+    const sorted = [...allPosts].sort((a,b) => {
+        const d1 = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+        const d2 = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+        return d2 - d1;
+    });
+
+    sorted.forEach(data => {
+        const title = data.title || "Sans titre";
+        let typeText = data.postType === 'perdu' ? "Perdu" : "Trouvé";
+        let typeClass = data.postType === 'perdu' ? "badge-lost" : "badge-found";
+        const dateStr = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString("fr-FR") : "-";
+        
+        let statusText = "Active";
+        let statusClass = "badge-active";
+        const st = data.status || 'active';
+        if (st === 'en_attente') { statusText = "En attente"; statusClass = "badge-flagged"; }
+        if (st === 'deleted' || st === 'blocked') { statusText = "Supprimé"; statusClass = "badge-removed"; }
+        if ((data.reportsCount || 0) > 0) { statusText = `Signalé (${data.reportsCount})`; statusClass = "badge-flagged"; }
+
+        const searchPool = `${title} ${data.category || ''} ${data.description || ''}`.toLowerCase();
+
+        const tr = document.createElement("tr");
+        tr.dataset.status = st;
+        tr.dataset.city = data.city || 'all';
+        tr.dataset.reports = data.reportsCount || 0;
+        tr.dataset.search = searchPool;
+
+        tr.innerHTML = `
+            <td>
+                <div class="post-title-sm">${title}</div>
+                <div class="post-sub-sm">${data.category || 'Autres'}</div>
+            </td>
+            <td><span class="badge ${typeClass}">${typeText}</span></td>
+            <td>${data.city || 'N/A'}</td>
+            <td style="font-size:11px">${(data.authorPrenom || 'Vindora') + ' ' + (data.authorNom || 'User')}</td>
+            <td>${dateStr}</td>
+            <td><span class="badge ${statusClass}">${statusText}</span></td>
+            <td>
+                <div class="actions-cell">
+                    ${st === 'en_attente' ? `<button class="act-btn" onclick="adminApprovePost('${data.id}')">Approuver</button>` : ''}
+                    ${(data.reportsCount || 0) > 0 ? `<button class="act-btn warn-btn" onclick="ignorerSignalements('${data.id}')">Ignorer</button>` : ''}
+                    ${st !== 'deleted' && st !== 'blocked' ? `<button class="act-btn" onclick="bloquerPost('${data.id}')">Bloquer</button>` : ''}
+                    <button class="act-btn danger" onclick="adminDeletePost('${data.id}')">Supprimer</button>
+                </div>
+            </td>
+        `;
+        pubBody.appendChild(tr);
+    });
+
+    // Re-appliqer les filtres sur les nouvelles lignes
+    applyDomFilters();
+}
+
 function updateAdminStats() {
-    const total = allPosts.length;
-    const pending = allPosts.filter(p => p.status === 'en_attente').length;
+    const pending = allPosts.filter(p => (p.status || 'active') === 'en_attente').length;
     const flagged = allPosts.filter(p => (p.reportsCount || 0) > 0).length;
 
     const badgePending = document.getElementById("badge-pending-count");
@@ -216,14 +207,9 @@ function updateAdminStats() {
         badgePending.style.display = pending > 0 ? 'block' : 'none';
     }
 
-    setText("admin-stat-total", total);
-    setText("admin-stat-pending", pending);
-    setText("admin-stat-flagged", flagged);
-}
-
-function setText(id, val) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val;
+    const tEl = document.getElementById("admin-stat-total"); if(tEl) tEl.textContent = allPosts.length;
+    const pEl = document.getElementById("admin-stat-pending"); if(pEl) pEl.textContent = pending;
+    const fEl = document.getElementById("admin-stat-flagged"); if(fEl) fEl.textContent = flagged;
 }
 
 function renderUsers(users) {
@@ -234,7 +220,6 @@ function renderUsers(users) {
     users.forEach(data => {
         const name = `${data.prenom || ''} ${data.nom || ''}`.trim() || "Utilisateur Vindora";
         const initials = (name.split(' ').map(n => n[0]).join('') || "UV").toUpperCase();
-        
         const html = `
             <tr>
                 <td>

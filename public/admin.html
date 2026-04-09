@@ -329,11 +329,10 @@
         </div>
         <div class="section-filter">
           <select id="admin-status-dropdown" class="filter-select" onchange="setAdminFilter(this.value)">
-            <option value="all">Toutes</option>
-            <option value="pending">En attente</option>
-            <option value="flagged">Signalées</option>
-            <option value="active">Actives</option>
-            <option value="removed">Bloquées</option>
+            <option value="all">Tous les statuts</option>
+            <option value="active">Active</option>
+            <option value="flagged">Signalé</option>
+            <option value="deleted">Supprimé</option>
           </select>
           <select id="admin-filter-city" class="filter-select" onchange="setAdminCity(this.value)">
             <option>Toutes les villes</option>
@@ -343,9 +342,9 @@
 
       <div class="section-tabs" style="margin-bottom:20px">
         <button class="stab active" onclick="setAdminFilter('all')">Toutes</button>
-        <button class="stab" onclick="setAdminFilter('pending')">En attente</button>
+        <button class="stab" onclick="setAdminFilter('active')">Actives</button>
         <button class="stab" onclick="setAdminFilter('flagged')">Signalées</button>
-        <button class="stab" onclick="setAdminFilter('removed')">Bloquées</button>
+        <button class="stab" onclick="setAdminFilter('deleted')">Supprimées</button>
       </div>
 
       <div class="table-wrap">
