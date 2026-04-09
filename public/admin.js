@@ -162,7 +162,7 @@ function renderAllTableRows() {
         const st = data.status || 'active';
         if (st === 'en_attente') { statusText = "En attente"; statusClass = "badge-flagged"; }
         if (st === 'deleted') { statusText = "Supprimé"; statusClass = "badge-removed"; }
-        if (st === 'blocked') { statusText = "Bloqué"; statusClass = "badge-removed"; }
+        if (st === 'blocked') { statusText = "Signalé"; statusClass = "badge-flagged"; }
         if ((data.reportsCount || 0) > 0) { statusText = `Signalé (${data.reportsCount})`; statusClass = "badge-flagged"; }
 
         const searchPool = `${title} ${data.category || ''} ${data.description || ''}`.toLowerCase();
