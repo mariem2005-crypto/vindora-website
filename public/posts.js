@@ -18,7 +18,7 @@ let activeTabFilter = 'all';
 window.deleteMyPost = async function(postId) {
     if (!confirm("Voulez-vous vraiment supprimer cette publication ?")) return;
     try {
-        await deleteDoc(doc(db, "posts", postId));
+        await updateDoc(doc(db, "posts", postId), { status: "deleted" });
         if (window.showToast) window.showToast("Publication supprimée avec succès.");
         loadMyPublications(); 
     } catch (error) {
