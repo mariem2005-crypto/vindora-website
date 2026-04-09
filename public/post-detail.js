@@ -188,7 +188,7 @@ window.sendComment = async () => {
             postOwnerUid: currentPostData.authorUid || "",
             text: text,
             authorUid: window.currentUser.uid,
-            authorName: `${window.currentUser.prenom} ${window.currentUser.nom}`,
+            authorName: `${window.currentUser.prenom || ''} ${window.currentUser.nom || ''}`.trim() || "Utilisateur",
             createdAt: serverTimestamp()
         });
 
@@ -196,6 +196,7 @@ window.sendComment = async () => {
         if (window.showToast) window.showToast("Commentaire ajouté !");
     } catch (error) {
         console.error("Error sendComment:", error);
+        if (window.showToast) window.showToast("Erreur lors de l'envoi : " + error.code, { type: "error" });
     }
 };
 

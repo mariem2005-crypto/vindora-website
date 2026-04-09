@@ -119,8 +119,25 @@ async function fetchComments() {
 
     } catch (e) {
         if (e.message.includes("requires an index")) {
-            if (window.showToast) window.showToast("Index Firestore manquant : voir console.");
-            console.error("Index requis :", e.message);
+            const wrapper = document.getElementById("comments-wrapper");
+            const emptyState = document.getElementById("empty-state");
+            if (wrapper) {
+                wrapper.innerHTML = `
+                    <div style="text-align:center; padding:40px; background:var(--grad-soft); border-radius:16px; border:2px dashed var(--blue-mid);">
+                        <div style="font-size:24px; margin-bottom:10px;">⚙️</div>
+                        <div style="font-weight:700; color:var(--ink); margin-bottom:8px;">Index Firestore Requis</div>
+                        <div style="font-size:14px; color:var(--ink-light); line-height:1.5;">
+                            Pour afficher vos commentaires de manière groupée, Firestore a besoin d'un index.<br>
+                            <strong>Veuillez ouvrir votre console (F12) et cliquer sur le lien bleu fourni par Firebase.</strong>
+                        </div>
+                    </div>
+                `;
+            }
+            if (emptyState) emptyState.style.display = "none";
+            if (window.showToast) window.showToast("Index manquant. Voir console.", { type: "error" });
+            console.error("Lien pour créer l'index :", e.message);
+        } else {
+            console.error("Erreur fetchComments:", e);
         }
     }
 }
