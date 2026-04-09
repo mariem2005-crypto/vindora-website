@@ -43,7 +43,7 @@ window.adminApprovePost = async function(postId) {
 window.bloquerPost = async function(postId) {
     if (!confirm("Bloquer cette publication ?")) return;
     try {
-        await updateDoc(doc(db, "posts", postId), { status: "deleted" });
+        await updateDoc(doc(db, "posts", postId), { status: "blocked" });
         if (window.showToast) window.showToast("Publication bloquée.");
     } catch (error) {
         console.error("Erreur blocage post :", error);
@@ -120,8 +120,8 @@ function applyDomFilters() {
         // Condition Statut
         let matchStatus = fStatus === 'all';
         if (fStatus === 'active') matchStatus = status === 'active';
-        if (fStatus === 'flagged') matchStatus = reports > 0;
-        if (fStatus === 'deleted') matchStatus = status === 'deleted' || status === 'blocked';
+        if (fStatus === 'flagged') matchStatus = (reports > 0 || status === 'blocked');
+        if (fStatus === 'deleted') matchStatus = status === 'deleted';
         if (fStatus === 'pending') matchStatus = status === 'en_attente';
 
         // Condition Ville
@@ -160,7 +160,8 @@ function renderAllTableRows() {
         let statusClass = "badge-active";
         const st = data.status || 'active';
         if (st === 'en_attente') { statusText = "En attente"; statusClass = "badge-flagged"; }
-        if (st === 'deleted' || st === 'blocked') { statusText = "Supprimé"; statusClass = "badge-removed"; }
+        if (st === 'deleted') { statusText = "Supprimé"; statusClass = "badge-removed"; }
+        if (st === 'blocked') { statusText = "Bloqué"; statusClass = "badge-removed"; }
         if ((data.reportsCount || 0) > 0) { statusText = `Signalé (${data.reportsCount})`; statusClass = "badge-flagged"; }
 
         const searchPool = `${title} ${data.category || ''} ${data.description || ''}`.toLowerCase();
