@@ -833,6 +833,7 @@
 </div>
 
 <script type="module">
+  console.log("Vindora Home Script: Initializing...");
   import { db } from "./firebase-config.js";
   import { collection, query, where, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
@@ -858,29 +859,88 @@
     'Autres':        ['all-type','Clés'],
   };
 
-  // 1) Initialiser le Listener temps réel
-  const postsRef = collection(db, "posts");
-  const q = query(postsRef, orderBy("createdAt", "desc"));
+  // 1) Initialiser les Listeners (Temps Réel)
+  let unsubscribeView = null; // Pour la vue filtrée
+  let unsubscribeCounts = null; // Pour les compteurs globaux
+  
+  // -- A) Listener global pour les COMPTEURS (Metadata) --
+  function startCountListener() {
+    if (unsubscribeCounts) unsubscribeCounts();
+    const q = query(postsRef, where("status", "in", ["active", "approved"]));
+    
+    unsubscribeCounts = onSnapshot(q, (snapshot) => {
+      const allMetaData = [];
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        allMetaData.push({ 
+          id: doc.id, 
+          postType: d.postType, 
+          category: d.category, 
+          city: d.city, 
+          status: d.status 
+        });
+      });
+      // Mettre à jour les badges de filtres
+      updateFilterCounts(allMetaData);
+    });
+  }
 
-  onSnapshot(q, (snapshot) => {
-    allPostsData = [];
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      // On accepte 'active' ou 'approved' pour l'affichage public
-      const isActive = data.status === 'active' || data.status === 'approved';
-      if (isActive) {
-          allPostsData.push({ id: doc.id, ...data });
+  // -- B) Listener dynamique pour le CONTENU (Vue filtrée) --
+  window.startLiveQuery = function() {
+    if (unsubscribeView) unsubscribeView();
+    
+    // Afficher le loader pendant le changement de requête
+    const loader = document.getElementById('loader');
+    if (loader) loader.style.display = 'flex';
+    document.getElementById('cards-grid').innerHTML = '';
+    if (loader) document.getElementById('cards-grid').appendChild(loader);
+
+    // Construction de la requête avec filtres Firestore
+    let constraints = [
+      where("status", "in", ["active", "approved"]),
+      orderBy("createdAt", "desc")
+    ];
+
+    if (activeFilters.statut !== 'all') {
+      constraints.unshift(where("postType", "==", activeFilters.statut));
+    }
+    if (activeFilters.categorie !== 'all-cat') {
+      constraints.unshift(where("category", "==", activeFilters.categorie));
+    }
+    if (activeFilters.ville !== 'all-ville') {
+      constraints.unshift(where("city", "==", activeFilters.ville));
+    }
+
+    const q = query(postsRef, ...constraints);
+
+    unsubscribeView = onSnapshot(q, (snapshot) => {
+      allPostsData = [];
+      console.log(`Vindora Home Script: Received ${snapshot.size} posts from Firestore.`);
+      snapshot.forEach(doc => {
+        allPostsData.push({ id: doc.id, ...doc.data() });
+      });
+
+      if (loader) loader.style.display = 'none';
+      
+      // Mettre à jour le titre principal (ex: "2 publications trouvées")
+      const mainCount = document.querySelector('.result-count span');
+      if (mainCount) mainCount.textContent = snapshot.size;
+
+      refresh();
+    }, (error) => {
+      console.error("Erreur Query Firestore:", error);
+      if (loader) loader.style.display = 'none';
+      
+      if (error.code === 'failed-precondition') {
+          console.warn("Lien pour créer l'index : ", error.message.match(/https:\/\/console\.firebase\.google\.com[^\s]*/));
+          alert("Index Firestore manquant. Cliquez sur le lien bleu dans votre console (F12) pour le créer, puis rafraîchissez la page.");
       }
     });
-    
-    // Masquer le loader après le premier chargement
-    const loader = document.getElementById('loader');
-    if (loader) loader.style.display = 'none';
+  };
 
-    refresh();
-  }, (error) => {
-    console.error("Erreur Listener Firestore:", error);
-  });
+  // Lancement initial
+  startCountListener();
+  startLiveQuery();
 
   // 2) Fonctions de filtrage
   window.applyFilter = function(group, value, el) {
@@ -889,7 +949,9 @@
     el.classList.add('active');
     if (group === 'categorie') updateTypeFilter(value);
     currentPage = 1;
-    refresh();
+    
+    // On relance la requête Firestore pour appliquer le filtre au backend
+    startLiveQuery();
   };
 
   function updateTypeFilter(cat) {
@@ -916,20 +978,41 @@
     });
     updateTypeFilter('all-cat');
     currentPage = 1;
-    refresh();
+    startLiveQuery();
   };
 
   // 3) Logique de rendu
   function getFiltered() {
     const q = activeFilters.query;
+    // Note: Le filtrage Statut/Catégorie/Ville est maintenant fait par Firestore
     return allPostsData.filter(post => {
-      const matchFilters = (activeFilters.statut === 'all' || post.postType === activeFilters.statut || post.status === activeFilters.statut)
-          && (activeFilters.categorie === 'all-cat' || post.category === activeFilters.categorie)
-          && (activeFilters.type === 'all-type' || post.objectType === activeFilters.type)
-          && (activeFilters.ville === 'all-ville' || post.city === activeFilters.ville);
-      if (!matchFilters) return false;
+      // On garde juste le filtre TYPE et le SEARCH en mémoire (pour éviter trop d'index composites)
+      const matchType = (activeFilters.type === 'all-type' || post.objectType === activeFilters.type);
+      if (!matchType) return false;
       if (q) return (post.title + post.content).toLowerCase().includes(q);
       return true;
+    });
+  }
+
+  function updateFilterCounts(data) {
+    const counts = { statut: {}, categorie: {}, ville: {} };
+    data.forEach(p => {
+      if (p.postType) counts.statut[p.postType] = (counts.statut[p.postType] || 0) + 1;
+      if (p.category) counts.categorie[p.category] = (counts.categorie[p.category] || 0) + 1;
+      if (p.city) counts.ville[p.city] = (counts.ville[p.city] || 0) + 1;
+    });
+
+    document.querySelectorAll('.filter-opt').forEach(el => {
+      const group = el.dataset.filter;
+      const val = el.dataset.value;
+      const span = el.querySelector('.filter-count');
+      if (span && group && val) {
+        if (val === 'all' || val === 'all-cat' || val === 'all-ville' || val === 'all-type') {
+          span.textContent = data.length;
+        } else {
+          span.textContent = counts[group] ? (counts[group][val] || 0) : 0;
+        }
+      }
     });
   }
 
