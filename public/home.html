@@ -1172,7 +1172,11 @@
       if (filtered.length === 0) {
         grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;opacity:0.5;">Aucun résultat trouvé.</div>';
       } else {
-        filtered.slice((currentPage - 1) * CARDS_PER_PAGE, currentPage * CARDS_PER_PAGE).forEach(post => {
+        const totalPages = Math.ceil(filtered.length / CARDS_PER_PAGE);
+        const start = (currentPage - 1) * CARDS_PER_PAGE;
+        const slice = filtered.slice(start, start + CARDS_PER_PAGE);
+
+        slice.forEach(post => {
           const isLost = (post.postType || post.type) === 'lost' || (post.postType || post.type) === 'perdu';
           const card = document.createElement('div');
           card.className = 'card';
@@ -1193,8 +1197,28 @@
             </div>`;
           grid.appendChild(card);
         });
+        
+        buildPagination(totalPages);
       }
       document.querySelector('.result-count span').textContent = filtered.length;
+    }
+
+    function buildPagination(total) {
+      const container = document.querySelector('.pagination');
+      if (!container) return;
+      container.innerHTML = '';
+      for (let i = 1; i <= total; i++) {
+        const btn = document.createElement('button');
+        btn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
+        btn.textContent = i;
+        btn.onclick = (e) => { 
+            e.stopPropagation();
+            currentPage = i; 
+            window.scrollTo({ top: 300, behavior: 'smooth' }); 
+            refreshUI(); 
+        };
+        container.appendChild(btn);
+      }
     }
 
     initApp();
