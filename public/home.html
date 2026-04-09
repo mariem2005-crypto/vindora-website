@@ -1090,20 +1090,13 @@
   </div>
 
   <script type="module">
-    console.log("Vindora Home Script: Initializing...");
     import { db } from "./firebase-config.js";
     import { collection, query, where, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-    // 1) Variables Globales
+    // 1) État de l'application
     const postsRef = collection(db, "posts");
-    let isFallbackMode = false;
-    let unsubscribeView = null;
-    let unsubscribeCounts = null;
-
-    const CARDS_PER_PAGE = 6;
-    let currentPage = 1;
-    let allPostsData = [];
-
+    let allPostsData = []; // La "Source de Vérité" (toutes les données approuvées)
+    
     const activeFilters = {
       statut: 'all',
       categorie: 'all-cat',
@@ -1111,144 +1104,154 @@
       query: ''
     };
 
-    // 2) Listeners temps réel
-    function startCountListener() {
-      if (unsubscribeCounts) unsubscribeCounts();
-      // On écoute tout ce qui est approuvé pour avoir les compteurs globaux
-      const q = query(postsRef, where("status", "in", ["active", "approved"]));
-      unsubscribeCounts = onSnapshot(q, (snapshot) => {
-        const allMetaData = [];
-        snapshot.forEach(doc => allMetaData.push({ id: doc.id, ...doc.data() }));
-        updateFilterCounts(allMetaData);
-      });
-    }
+    const CARDS_PER_PAGE = 6;
+    let currentPage = 1;
 
-    window.startLiveQuery = function() {
-      if (unsubscribeView) unsubscribeView();
+    // 2) LE SEUL LISTENER DONT VOUS AVEZ BESOIN (Pas d'erreur d'index possible)
+    function initRealtimeData() {
       const loader = document.getElementById('loader');
       if (loader) loader.style.display = 'flex';
 
-      // Construction de la requête Firestore combinée
-      let constraints = [where("status", "in", ["active", "approved"]), orderBy("createdAt", "desc")];
-      if (activeFilters.statut !== 'all') constraints.push(where("postType", "==", activeFilters.statut));
-      if (activeFilters.categorie !== 'all-cat') constraints.push(where("category", "==", activeFilters.categorie));
-      if (activeFilters.ville !== 'all-ville') constraints.push(where("city", "==", activeFilters.ville));
+      // On écoute TOUTES les publications approuvées par date
+      const q = query(postsRef, 
+        where("status", "in", ["active", "approved"]), 
+        orderBy("createdAt", "desc")
+      );
 
-      const q = query(postsRef, ...constraints);
-
-      unsubscribeView = onSnapshot(q, (snapshot) => {
-        isFallbackMode = false;
+      onSnapshot(q, (snapshot) => {
         allPostsData = [];
         snapshot.forEach(doc => allPostsData.push({ id: doc.id, ...doc.data() }));
+        
+        console.log("Données reçues :", allPostsData.length, "publications");
+        
         if (loader) loader.style.display = 'none';
-        refresh();
+        updateFilterCounts(); // Met à jour les (3), (6), etc.
+        refreshUI();          // Met à jour les cartes
       }, (error) => {
+        console.error("Erreur Firestore :", error);
+        if (loader) loader.style.display = 'none';
+        
+        // Alerte si l'index de base (status + createdAt) est manquant
         if (error.code === 'failed-precondition') {
-          console.warn("Index manquant -> Mode local activé.");
-          isFallbackMode = true;
-          // Repli sur une requête simple
-          const fallbackQ = query(postsRef, where("status", "in", ["active", "approved"]), orderBy("createdAt", "desc"));
-          unsubscribeView = onSnapshot(fallbackQ, (snap) => {
-            allPostsData = [];
-            snap.forEach(d => allPostsData.push({ id: d.id, ...d.data() }));
-            if (loader) loader.style.display = 'none';
-            refresh();
-          });
+            alert("Index de base manquant. Cliquez sur le lien dans la console (F12) pour créer l'index initial.");
         }
       });
-    };
+    }
 
-    // 3) Actions Utilisateur
-    window.applyFilter = function(group, value, el) {
-      activeFilters[group] = value;
-      document.querySelectorAll(`[data-filter="${group}"]`).forEach(o => o.classList.remove('active'));
-      el.classList.add('active');
-      currentPage = 1;
-      startLiveQuery();
-    };
-
-    window.resetFilters = function() {
-      activeFilters.statut = 'all'; activeFilters.categorie = 'all-cat'; activeFilters.ville = 'all-ville'; activeFilters.query = '';
-      document.getElementById('search-input').value = '';
-      document.querySelectorAll('.filter-opt').forEach(opt => {
-          opt.classList.remove('active');
-          if (opt.dataset.value === 'all' || opt.dataset.value === 'all-cat' || opt.dataset.value === 'all-ville') opt.classList.add('active');
-      });
-      startLiveQuery();
-    };
-
-    window.searchCards = function() {
-      activeFilters.query = document.getElementById('search-input').value.toLowerCase().trim();
-      refresh();
-    };
-
-    // 4) Logique de Rendu
-    function getFiltered() {
+    // 3) Logique de filtrage instantané (En mémoire)
+    function getFilteredData() {
       return allPostsData.filter(post => {
-        if (isFallbackMode) {
-          const matchStatut = (activeFilters.statut === 'all' || post.postType === activeFilters.statut);
-          const matchCat = (activeFilters.categorie === 'all-cat' || post.category === activeFilters.categorie);
-          const matchVille = (activeFilters.ville === 'all-ville' || post.city === activeFilters.ville);
-          if (!matchStatut || !matchCat || !matchVille) return false;
-        }
-        if (activeFilters.query && !((post.title||'') + (post.content||'')).toLowerCase().includes(activeFilters.query)) return false;
+        // Filtrage Statut
+        if (activeFilters.statut !== 'all' && post.postType !== activeFilters.statut) return false;
+        // Filtrage Catégorie
+        if (activeFilters.categorie !== 'all-cat' && post.category !== activeFilters.categorie) return false;
+        // Filtrage Ville
+        if (activeFilters.ville !== 'all-ville' && post.city !== activeFilters.ville) return false;
+        // Filtrage Recherche (Titre + Contenu)
+        if (activeFilters.query && !((post.title||'') + (post.content||'')).toLowerCase().includes(activeFilters.query.toLowerCase())) return false;
+        
         return true;
       });
     }
 
-    function updateFilterCounts(data) {
-      const counts = { statut: {}, categorie: {}, ville: {} };
-      data.forEach(p => {
+    // 4) Actions Utilisateur
+    window.applyFilter = function(group, value, el) {
+      activeFilters[group] = value;
+      // UI Update
+      document.querySelectorAll(`[data-filter="${group}"]`).forEach(o => o.classList.remove('active'));
+      el.classList.add('active');
+      
+      currentPage = 1;
+      refreshUI(); // Mise à jour INSTANTANÉE
+    };
+
+    window.resetFilters = function() {
+      activeFilters.statut = 'all'; 
+      activeFilters.categorie = 'all-cat'; 
+      activeFilters.ville = 'all-ville'; 
+      activeFilters.query = '';
+      document.getElementById('search-input').value = '';
+      
+      document.querySelectorAll('.filter-opt').forEach(opt => {
+          opt.classList.remove('active');
+          const val = opt.dataset.value;
+          if (val === 'all' || val === 'all-cat' || val === 'all-ville') opt.classList.add('active');
+      });
+      
+      refreshUI();
+    };
+
+    window.searchCards = function() {
+      activeFilters.query = document.getElementById('search-input').value.toLowerCase().trim();
+      refreshUI();
+    };
+
+    // 5) Mise à jour des compteurs (Les petits chiffres)
+    function updateFilterCounts() {
+      const counts = { statut: { lost:0, found:0 }, categorie: {}, ville: {} };
+      
+      allPostsData.forEach(p => {
         if (p.postType) counts.statut[p.postType] = (counts.statut[p.postType] || 0) + 1;
         if (p.category) counts.categorie[p.category] = (counts.categorie[p.category] || 0) + 1;
         if (p.city) counts.ville[p.city] = (counts.ville[p.city] || 0) + 1;
       });
+
       document.querySelectorAll('.filter-opt').forEach(el => {
         const span = el.querySelector('.filter-count');
-        if (span) {
-          const g = el.dataset.filter; const v = el.dataset.value;
-          if (v.startsWith('all')) span.textContent = data.length;
-          else span.textContent = counts[g]?.[v] || 0;
+        if (!span) return;
+        
+        const g = el.dataset.filter;
+        const v = el.dataset.value;
+
+        if (v === 'all' || v === 'all-cat' || v === 'all-ville') {
+          span.textContent = allPostsData.length;
+        } else {
+          span.textContent = counts[g]?.[v] || 0;
         }
       });
     }
 
-    function refresh() {
-      const filtered = getFiltered();
-      const total = Math.max(1, Math.ceil(filtered.length / CARDS_PER_PAGE));
-      const slice = filtered.slice((currentPage - 1) * CARDS_PER_PAGE, currentPage * CARDS_PER_PAGE);
-      
+    // 6) Rendu visuel
+    function refreshUI() {
+      const filtered = getFilteredData();
       const grid = document.getElementById('cards-grid');
       grid.innerHTML = '';
-      if (slice.length === 0) {
-          grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;opacity:0.6;">Aucune publication trouvée.</div>';
+
+      if (filtered.length === 0) {
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;opacity:0.6;">Désolé, aucune publication ne correspond à vos critères.</div>';
       } else {
-          slice.forEach(post => {
-              const postTypeRaw = (post.postType || 'lost').toLowerCase();
-              const isLost = postTypeRaw === 'lost' || postTypeRaw === 'perdu';
-              const card = document.createElement('div');
-              card.className = 'card';
-              card.onclick = () => window.location.href = `post-detail.html?id=${post.id}`;
-              card.innerHTML = `
-                  <div class="card-img">
-                      ${post.imageUrl ? `<img src="${post.imageUrl}" style="width:100%;height:100%;object-fit:cover;">` : `<div class="card-img-placeholder">🔍</div>`}
-                      <span class="card-badge ${isLost?'badge-lost':'badge-found'}">${isLost?'Perdu':'Trouvé'}</span>
-                  </div>
-                  <div class="card-body">
-                      <div class="card-category">${post.category || 'Autres'}</div>
-                      <div class="card-title">${post.title}</div>
-                      <div class="card-desc">${post.content}</div>
-                      <div class="card-footer">
-                          <div class="card-location">${post.city || 'Non spécifié'}</div>
-                          <div class="card-date">${post.createdAt?.toDate ? post.createdAt.toDate().toLocaleDateString() : 'Récemment'}</div>
-                      </div>
-                  </div>`;
-              grid.appendChild(card);
-          });
+        // Pagination simple
+        const totalPages = Math.ceil(filtered.length / CARDS_PER_PAGE);
+        const start = (currentPage - 1) * CARDS_PER_PAGE;
+        const slice = filtered.slice(start, start + CARDS_PER_PAGE);
+
+        slice.forEach(post => {
+          const isLost = post.postType === 'lost';
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.onclick = () => window.location.href = `post-detail.html?id=${post.id}`;
+          card.innerHTML = `
+            <div class="card-img">
+              ${post.imageUrl ? `<img src="${post.imageUrl}" style="width:100%;height:100%;object-fit:cover;">` : `<div class="card-img-placeholder">🔍</div>`}
+              <span class="card-badge ${isLost?'badge-lost':'badge-found'}">${isLost?'Perdu':'Trouvé'}</span>
+            </div>
+            <div class="card-body">
+              <div class="card-category">${post.category || 'Autres'}</div>
+              <div class="card-title">${post.title}</div>
+              <div class="card-desc">${post.content}</div>
+              <div class="card-footer">
+                <div class="card-location">${post.city || 'Non spécifié'}</div>
+                <div class="card-date">${post.createdAt?.toDate ? post.createdAt.toDate().toLocaleDateString() : 'Récemment'}</div>
+              </div>
+            </div>`;
+          grid.appendChild(card);
+        });
+
+        buildPagination(totalPages);
       }
+      
       const countEl = document.querySelector('.result-count span');
       if (countEl) countEl.textContent = filtered.length;
-      buildPagination(total);
     }
 
     function buildPagination(total) {
@@ -1259,14 +1262,18 @@
         const btn = document.createElement('button');
         btn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
         btn.textContent = i;
-        btn.onclick = () => { currentPage = i; window.scrollTo({ top: 300, behavior: 'smooth' }); refresh(); };
+        btn.onclick = (e) => { 
+            e.stopPropagation();
+            currentPage = i; 
+            window.scrollTo({ top: 300, behavior: 'smooth' }); 
+            refreshUI(); 
+        };
         container.appendChild(btn);
       }
     }
 
     // Lancement
-    startCountListener();
-    startLiveQuery();
+    initRealtimeData();
   </script>
 
   <script type="module" src="./session.js"></script>
