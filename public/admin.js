@@ -3,6 +3,10 @@ console.log("Admin Dashboard Logic - Initializing...");
 import { auth, db } from "./firebase-config.js";
 import { collection, getDocs, doc, deleteDoc, updateDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import { populateCitySelect } from "./locationService.js";
+
+// Initialisation des villes dans le filtre admin
+populateCitySelect("admin-filter-city", { includeAll: true, defaultText: "Toutes les villes" });
 
 // ====== POSTS MODERATION ======
 window.adminDeletePost = async function(postId) {

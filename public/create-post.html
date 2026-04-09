@@ -471,15 +471,6 @@
             </span>
             <select id="post-city">
               <option value="">Choisir une ville</option>
-              <option>Tunis</option>
-              <option>Sfax</option>
-              <option>Sousse</option>
-              <option>Bizerte</option>
-              <option>Nabeul</option>
-              <option>Gabès</option>
-              <option>Ariana</option>
-              <option>Ben Arous</option>
-              <option>Monastir</option>
             </select>
           </div>
         </div>
@@ -634,6 +625,10 @@
 <script type="module">
   import { db } from "./firebase-config.js";
   import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  import { populateCitySelect } from "./locationService.js";
+
+  // Initialisation dynamique
+  populateCitySelect("post-city");
 
   window.submitPost = async function() {
     if (!window.currentUser) {

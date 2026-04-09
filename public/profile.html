@@ -339,12 +339,7 @@
         <div class="input-wrap">
           <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg></span>
           <select id="edit-city">
-            <option value="Tunis">Tunis</option>
-            <option value="Sfax">Sfax</option>
-            <option value="Sousse">Sousse</option>
-            <option value="Bizerte">Bizerte</option>
-            <option value="Nabeul">Nabeul</option>
-            <option value="Gabès">Gabès</option>
+            <option value="">Choisir une ville</option>
           </select>
         </div>
       </div>
@@ -486,6 +481,10 @@
   import { auth, db } from "./firebase-config.js";
   import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+  import { populateCitySelect } from "./locationService.js";
+
+  // Initialisation dynamique
+  populateCitySelect("edit-city");
 
   // TASK 3: Profile Page Sync (profile.html)
   async function updateProfileStats(user) {
