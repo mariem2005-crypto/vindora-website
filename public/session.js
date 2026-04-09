@@ -1,9 +1,42 @@
 import { auth, db } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { doc, getDoc, collection, query, where, onSnapshot, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 // Variable globale pour accéder à l'utilisateur connecté depuis n'importe quel fichier
 window.currentUser = null;
+
+let isInitialLoad = true;
+
+/**
+ * Configure un listener en temps réel pour les notifications de l'utilisateur.
+ * @param {string} userUid - L'UID de l'utilisateur.
+ */
+function setupNotificationListener(userUid) {
+    const notifRef = collection(db, "notifications");
+    const q = query(
+        notifRef,
+        where("userUid", "==", userUid),
+        where("read", "==", false),
+        orderBy("createdAt", "desc"),
+        limit(1)
+    );
+
+    onSnapshot(q, (snapshot) => {
+        if (isInitialLoad) {
+            isInitialLoad = false;
+            return;
+        }
+
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+                const data = change.doc.data();
+                if (window.showToast) {
+                    window.showToast(data.message || "Nouvelle notification de l'administration !");
+                }
+            }
+        });
+    });
+}
 
 onAuthStateChanged(auth, async (user) => {
     const path = window.location.pathname.toLowerCase();
@@ -24,6 +57,9 @@ onAuthStateChanged(auth, async (user) => {
 
                 // Hydratation UI : Initiales, Nom complet et formulaire
                 updateUIProfile(userData);
+
+                // Activer l'écoute des notifications en temps réel
+                setupNotificationListener(user.uid);
 
                 // Règles de redirection et de sécurité (Session de Garde)
                 if (isPublicPage) {
