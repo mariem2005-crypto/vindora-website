@@ -837,6 +837,9 @@
   import { db } from "./firebase-config.js";
   import { collection, query, where, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
+  const postsRef = collection(db, "posts"); // Référence globale pour le module
+  let isFallbackMode = false; // Flag pour savoir si on filtre en local
+
   const CARDS_PER_PAGE = 6;
   let currentPage = 1;
   let allPostsData = []; // Stockage local des publications Firestore
@@ -914,26 +917,34 @@
     const q = query(postsRef, ...constraints);
 
     unsubscribeView = onSnapshot(q, (snapshot) => {
+      isFallbackMode = false; // On utilise le filtrage serveur (index OK)
       allPostsData = [];
-      console.log(`Vindora Home Script: Received ${snapshot.size} posts from Firestore.`);
       snapshot.forEach(doc => {
         allPostsData.push({ id: doc.id, ...doc.data() });
       });
-
       if (loader) loader.style.display = 'none';
-      
-      // Mettre à jour le titre principal (ex: "2 publications trouvées")
-      const mainCount = document.querySelector('.result-count span');
-      if (mainCount) mainCount.textContent = snapshot.size;
-
       refresh();
     }, (error) => {
-      console.error("Erreur Query Firestore:", error);
-      if (loader) loader.style.display = 'none';
-      
+      // ÉCHEC : Probablement un index manquant ou en cours de création
       if (error.code === 'failed-precondition') {
-          console.warn("Lien pour créer l'index : ", error.message.match(/https:\/\/console\.firebase\.google\.com[^\s]*/));
-          alert("Index Firestore manquant. Cliquez sur le lien bleu dans votre console (F12) pour le créer, puis rafraîchissez la page.");
+          console.warn("Index manquant. Basculement en mode Fallback (filtrage local).");
+          isFallbackMode = true; 
+          
+          // REPLI : Requête simple (ne nécessite pas d'index composite)
+          const fallbackQ = query(postsRef, 
+            where("status", "in", ["active", "approved"]), 
+            orderBy("createdAt", "desc")
+          );
+          
+          unsubscribeView = onSnapshot(fallbackQ, (snap) => {
+              allPostsData = [];
+              snap.forEach(d => allPostsData.push({ id: d.id, ...d.data() }));
+              if (loader) loader.style.display = 'none';
+              refresh();
+          });
+      } else {
+          console.error("Erreur Firestore :", error);
+          if (loader) loader.style.display = 'none';
       }
     });
   };
@@ -984,11 +995,20 @@
   // 3) Logique de rendu
   function getFiltered() {
     const q = activeFilters.query;
-    // Note: Le filtrage Statut/Catégorie/Ville est maintenant fait par Firestore
+    
     return allPostsData.filter(post => {
-      // On garde juste le filtre TYPE et le SEARCH en mémoire (pour éviter trop d'index composites)
+      // Si on est en mode Fallback, on doit TOUT filtrer en JS
+      if (isFallbackMode) {
+          const matchStatut = (activeFilters.statut === 'all' || post.postType === activeFilters.statut);
+          const matchCat = (activeFilters.categorie === 'all-cat' || post.category === activeFilters.categorie);
+          const matchVille = (activeFilters.ville === 'all-ville' || post.city === activeFilters.ville);
+          if (!matchStatut || !matchCat || !matchVille) return false;
+      }
+
+      // Filtres toujours en mémoire (Type d'objet et Recherche)
       const matchType = (activeFilters.type === 'all-type' || post.objectType === activeFilters.type);
       if (!matchType) return false;
+      
       if (q) return (post.title + post.content).toLowerCase().includes(q);
       return true;
     });
