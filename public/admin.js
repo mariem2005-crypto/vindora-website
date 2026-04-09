@@ -73,13 +73,15 @@ window.ignorerSignalements = async function(postId) {
 window.openWarnModal = function(userId, postId) {
     currentWarnUserId = userId;
     currentWarnPostId = postId;
-    document.getElementById("modal-warn").classList.add("show");
+    const overlay = document.getElementById("modal-warn-overlay");
+    if (overlay) overlay.classList.add("show");
 };
 
 window.closeWarnModal = function() {
     currentWarnUserId = null;
     currentWarnPostId = null;
-    document.getElementById("modal-warn").classList.remove("show");
+    const overlay = document.getElementById("modal-warn-overlay");
+    if (overlay) overlay.classList.remove("show");
 };
 
 window.confirmSendAlert = async function() {
@@ -240,9 +242,12 @@ function renderAllTableRows() {
                     ${st === 'en_attente' ? `<button class="act-btn" onclick="adminApprovePost('${data.id}')">Approuver</button>` : ''}
                     ${((data.reportsCount || 0) > 0 || st === 'blocked') ? `
                         <button class="act-btn warn-btn" onclick="ignorerSignalements('${data.id}')">Ignorer</button>
-                        <button class="act-btn warn-btn" onclick="openWarnModal('${data.authorUid}', '${data.id}')">Avertir</button>
                     ` : ''}
                     
+                    ${(st === 'active' || st === 'en_attente' || st === 'blocked' || st === 'sous_surveillance') ? `
+                        <button class="act-btn" style="color:var(--warn)" onclick="openWarnModal('${data.authorUid}', '${data.id}')">Avertir</button>
+                    ` : ''}
+
                     ${(st === 'active' || st === 'en_attente') ? `<button class="act-btn" onclick="adminToggleSignal('${data.id}', '${st}')">Signaler</button>` : ''}
                     ${st === 'blocked' ? `<button class="act-btn" onclick="adminToggleSignal('${data.id}', 'blocked')">Activer</button>` : ''}
                     

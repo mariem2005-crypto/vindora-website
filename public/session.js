@@ -64,28 +64,46 @@ function setupAlertListener(userUid) {
 }
 
 function injectAlertBanner(motif, alertId) {
+    const container = document.getElementById("user-alerts-container");
     const banner = document.createElement("div");
     banner.id = "vindora-alert-banner";
+    
+    // Style différent selon si c'est une bannière ou un bloc intégré
+    const isInline = !!container;
+    const background = "#FFF7ED";
+    const border = "2px solid #F59E0B";
+    const shadow = isInline ? "none" : "0 4px 12px rgba(0,0,0,0.1)";
+    const position = isInline ? "relative" : "sticky";
+    const margin = isInline ? "20px 0" : "0";
+    const radius = isInline ? "16px" : "0";
+
     banner.innerHTML = `
-        <div style="background: #FFF7ED; border-bottom: 2px solid #F59E0B; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+        <div style="background: ${background}; border: ${border}; border-radius: ${radius}; padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; position: ${position}; top: 0; z-index: 9999; box-shadow: ${shadow}; margin: ${margin};">
             <div style="display: flex; align-items: center; gap: 12px;">
-                <div style="background: #F59E0B; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">!</div>
+                <div style="background: #F59E0B; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink:0;">!</div>
                 <div>
                     <strong style="color: #9A3412; font-size: 14px; display: block;">ALERTE PRÉVENTIVE : Risque de sanction</strong>
-                    <span style="color: #C2410C; font-size: 13px;">Motif : ${motif}. Veuillez corriger vos publications pour éviter un blocage définitif.</span>
+                    <span style="color: #C2410C; font-size: 12.5px; opacity:0.9;">Motif : ${motif}. Corriger vos publications pour éviter un blocage.</span>
                 </div>
             </div>
-            <button id="close-alert-btn" style="background: #FDE68A; border: none; color: #9A3412; padding: 6px 15px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 12px; transition: 0.2s;">
-                J'ai compris
+            <button id="close-alert-btn" style="background: #F59E0B; border: none; color: white; padding: 6px 15px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 12px; transition: 0.2s; flex-shrink:0;">
+                OK
             </button>
         </div>
     `;
-    document.body.prepend(banner);
+
+    if (isInline) {
+        container.style.display = "block";
+        container.prepend(banner);
+    } else {
+        document.body.prepend(banner);
+    }
 
     document.getElementById("close-alert-btn").onclick = async () => {
         try {
             await updateDoc(doc(db, "alerts", alertId), { lu: true });
             banner.remove();
+            if (isInline && container.children.length === 0) container.style.display = "none";
         } catch (e) { console.error("Erreur lecture alerte :", e); }
     };
 }

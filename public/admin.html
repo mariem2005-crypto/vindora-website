@@ -654,15 +654,15 @@
 </div>
 
 <!-- MODAL : AVERTIR (ALERTE PRÉVENTIVE) -->
-<div class="modal" id="modal-warn">
-  <div class="modal-content">
+<div class="modal-overlay" id="modal-warn-overlay">
+  <div class="modal" id="modal-warn">
     <div class="modal-header">
       <div class="modal-icon" style="background:#FFFBEB"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2.2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
-      <div class="modal-title">Envoyer une alerte préventive</div>
+      <h3 class="modal-title">Envoyer une alerte préventive</h3>
     </div>
     <div class="modal-body">
       <p style="margin-bottom:15px; font-size:14px; color:var(--ink-light)">Choisir le motif du signalement pour informer l'utilisateur :</p>
-      <select id="warn-motif" class="filter-select" style="width:100%; height:45px; border-radius:12px; font-weight:600;">
+      <select id="warn-motif" class="filter-select" style="width:100%; height:45px; border-radius:12px; font-weight:600; padding: 0 10px;">
         <option value="Contenu inapproprié">Contenu inapproprié</option>
         <option value="Localisation incorrecte (Fausse ville)">Localisation incorrecte (Fausse ville)</option>
         <option value="Catégorie erronée">Catégorie erronée</option>
@@ -671,9 +671,9 @@
         <option value="Autre motif">Autre motif</option>
       </select>
     </div>
-    <div class="modal-footer">
-      <button class="btn-modal-cancel" onclick="closeWarnModal()">Annuler</button>
-      <button class="btn-modal-confirm btn-warn-confirm" onclick="confirmSendAlert()">Envoyer l'alerte</button>
+    <div class="modal-footer" style="display:flex; gap:10px; margin-top:20px;">
+      <button class="btn-modal-cancel" style="flex:1" onclick="closeWarnModal()">Annuler</button>
+      <button class="btn-modal-confirm btn-warn-confirm" style="flex:1" onclick="confirmSendAlert()">Envoyer l'alerte</button>
     </div>
   </div>
 </div>
