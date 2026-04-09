@@ -40,13 +40,14 @@ window.adminApprovePost = async function(postId) {
     }
 };
 
-window.bloquerPost = async function(postId) {
-    if (!confirm("Bloquer cette publication ?")) return;
+window.adminToggleSignal = async function(postId, currentStatus) {
     try {
-        await updateDoc(doc(db, "posts", postId), { status: "blocked" });
-        if (window.showToast) window.showToast("Publication bloquée.");
+        const newStatus = currentStatus === "blocked" ? "active" : "blocked";
+        await updateDoc(doc(db, "posts", postId), { status: newStatus });
+        const msg = newStatus === "blocked" ? "Publication signalée et masquée." : "Publication réactivée.";
+        if (window.showToast) window.showToast(msg);
     } catch (error) {
-        console.error("Erreur blocage post :", error);
+        console.error("Erreur toggle signal :", error);
     }
 };
 
@@ -186,7 +187,10 @@ function renderAllTableRows() {
                 <div class="actions-cell">
                     ${st === 'en_attente' ? `<button class="act-btn" onclick="adminApprovePost('${data.id}')">Approuver</button>` : ''}
                     ${(data.reportsCount || 0) > 0 ? `<button class="act-btn warn-btn" onclick="ignorerSignalements('${data.id}')">Ignorer</button>` : ''}
-                    ${st !== 'deleted' && st !== 'blocked' ? `<button class="act-btn" onclick="bloquerPost('${data.id}')">Bloquer</button>` : ''}
+                    
+                    ${st === 'active' ? `<button class="act-btn" onclick="adminToggleSignal('${data.id}', 'active')">Signaler</button>` : ''}
+                    ${st === 'blocked' ? `<button class="act-btn" onclick="adminToggleSignal('${data.id}', 'blocked')">Activer</button>` : ''}
+                    
                     <button class="act-btn danger" onclick="adminDeletePost('${data.id}')">Supprimer</button>
                 </div>
             </td>
