@@ -1061,7 +1061,10 @@
 
   <script type="module">
     import { db } from "./firebase-config.js";
-    import { collection, query, where, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+    import { 
+      collection, query, where, onSnapshot, orderBy, 
+      doc, updateDoc, arrayUnion, increment 
+    } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
     import { getVilles } from "./locationService.js";
 
     // 1) État Globlal
@@ -1188,9 +1191,14 @@
               <div class="card-desc">${post.content || post.description || ''}</div>
               <div class="card-footer" style="display:flex; justify-content:space-between; align-items:center;">
                 <div class="card-location">${post.city || 'N/A'}</div>
-                <div class="card-meta-likes" style="font-size:12px; display:flex; align-items:center; gap:4px; opacity:0.7;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="#E03B3B" stroke="#E03B3B"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                  <span>${post.likes ? post.likes.length : 0}</span>
+                <div class="card-meta-likes" style="font-size:12px; display:flex; align-items:center; gap:8px;">
+                  <div style="display:flex; align-items:center; gap:3px; opacity:0.7;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#E03B3B" stroke="#E03B3B"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                    <span>${post.likes ? post.likes.length : 0}</span>
+                  </div>
+                  <button onclick="event.stopPropagation(); reportPostOnHome('${post.id}')" style="background:none; border:none; padding:0; cursor:pointer; display:flex; align-items:center; color:var(--ink-light); opacity:0.5; transition:0.2s;" onmouseover="this.style.opacity=1; this.style.color='var(--warning)'" onmouseout="this.style.opacity=0.5; this.style.color='var(--ink-light)'">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  </button>
                 </div>
               </div>
             </div>`;
@@ -1219,6 +1227,25 @@
         container.appendChild(btn);
       }
     }
+
+    // --- SIGNALEMENT RAPIDE ---
+    window.reportPostOnHome = async function(postId) {
+      if (!window.currentUser) {
+        if (window.showToast) window.showToast("Connectez-vous pour signaler.");
+        return;
+      }
+      if (!confirm("Signaler cette publication pour contenu inapproprié ?")) return;
+      try {
+        const postRef = doc(db, "posts", postId);
+        await updateDoc(postRef, {
+            reportsCount: increment(1),
+            reportedBy: arrayUnion(window.currentUser.uid)
+        });
+        if (window.showToast) window.showToast("Signalement envoyé !");
+      } catch (e) {
+        console.error("Erreur signalement :", e);
+      }
+    };
 
     initApp();
   </script>

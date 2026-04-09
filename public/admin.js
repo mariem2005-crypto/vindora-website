@@ -188,7 +188,7 @@ function renderAllTableRows() {
                     ${st === 'en_attente' ? `<button class="act-btn" onclick="adminApprovePost('${data.id}')">Approuver</button>` : ''}
                     ${(data.reportsCount || 0) > 0 ? `<button class="act-btn warn-btn" onclick="ignorerSignalements('${data.id}')">Ignorer</button>` : ''}
                     
-                    ${st === 'active' ? `<button class="act-btn" onclick="adminToggleSignal('${data.id}', 'active')">Signaler</button>` : ''}
+                    ${(st === 'active' || st === 'en_attente') ? `<button class="act-btn" onclick="adminToggleSignal('${data.id}', '${st}')">Signaler</button>` : ''}
                     ${st === 'blocked' ? `<button class="act-btn" onclick="adminToggleSignal('${data.id}', 'blocked')">Activer</button>` : ''}
                     
                     <button class="act-btn danger" onclick="adminDeletePost('${data.id}')">Supprimer</button>

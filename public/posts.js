@@ -87,7 +87,13 @@ function renderPost(documentSnapshot) {
     const badgeText = internalPostType === "perdu" ? "Perdu" : "Trouvé";
 
     let resolutionBadge = "<span class='badge badge-active'>Active</span>";
-    if (postStatus.includes("resolu") || postStatus === "resolved") {
+    if (postStatus === "en_attente") {
+        resolutionBadge = "<span class='badge badge-flagged'>En attente</span>";
+    } else if (postStatus === "blocked") {
+        resolutionBadge = "<span class='badge badge-flagged'>Signalé</span>";
+    } else if (postStatus === "deleted") {
+        resolutionBadge = "<span class='badge badge-removed'>Supprimé</span>";
+    } else if (postStatus.includes("resolu") || postStatus === "resolved") {
         resolutionBadge = "<span class='badge badge-resolved'>Résolu</span>";
     }
 
