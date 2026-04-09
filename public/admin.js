@@ -9,6 +9,8 @@ import { populateCitySelect } from "./locationService.js";
 // Global data store for filtering
 let allPosts = [];
 let currentFilter = 'all'; 
+let currentCity = 'all';
+let searchQuery = '';
 
 // Initialisation des villes dans le filtre admin
 populateCitySelect("admin-filter-city", { includeAll: true, defaultText: "Toutes les villes" });
@@ -30,7 +32,7 @@ window.adminApprovePost = async function(postId) {
     try {
         await updateDoc(doc(db, "posts", postId), { 
             status: "active",
-            reportsCount: 0 // Reset reports if approving
+            reportsCount: 0 
         });
         if (window.showToast) window.showToast("Publication approuvée !");
     } catch (error) {
@@ -64,7 +66,6 @@ window.ignorerSignalements = async function(postId) {
  * ÉCOUTEURS TEMPS RÉEL
  */
 function listenToAdminData() {
-    // 1. Écouter les Posts
     const postsRef = collection(db, "posts");
     onSnapshot(postsRef, (snapshot) => {
         allPosts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -72,7 +73,6 @@ function listenToAdminData() {
         updateAdminStats();
     });
 
-    // 2. Écouter les Utilisateurs
     const usersRef = collection(db, "users");
     onSnapshot(usersRef, (snapshot) => {
         const users = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -83,17 +83,35 @@ function listenToAdminData() {
 }
 
 /**
- * RENDU DES PUBLICATIONS
+ * MOTEUR DE FILTRAGE UNIFIÉ
  */
 window.setAdminFilter = function(filter) {
     currentFilter = filter;
-    renderFilteredPosts();
     
-    // Update tabs UI
+    // 1. Sync Tabs UI
     document.querySelectorAll('.stab').forEach(btn => {
-        const type = btn.getAttribute('onclick').match(/'([^']+)'/)[1];
-        btn.classList.toggle('active', type === filter);
+        const typeMatch = btn.getAttribute('onclick').match(/'([^']+)'/);
+        if (typeMatch) {
+            const type = typeMatch[1];
+            btn.classList.toggle('active', type === filter);
+        }
     });
+
+    // 2. Sync Dropdown UI
+    const statusSelect = document.getElementById("admin-status-dropdown");
+    if (statusSelect) statusSelect.value = filter;
+
+    renderFilteredPosts();
+};
+
+window.setAdminCity = function(city) {
+    currentCity = city === "Toutes les villes" ? "all" : city;
+    renderFilteredPosts();
+};
+
+window.setAdminSearch = function(query) {
+    searchQuery = query.toLowerCase().trim();
+    renderFilteredPosts();
 };
 
 function renderFilteredPosts() {
@@ -101,51 +119,84 @@ function renderFilteredPosts() {
     if (!pubBody) return;
 
     let filtered = allPosts;
+
+    // 1. Filtre par Statut (Onglets)
     if (currentFilter === 'pending') {
-        filtered = allPosts.filter(p => (p.status || 'active') === 'en_attente');
+        filtered = filtered.filter(p => (p.status || 'active') === 'en_attente');
     } else if (currentFilter === 'flagged') {
-        filtered = allPosts.filter(p => (p.reportsCount || 0) > 0).sort((a,b) => (b.reportsCount || 0) - (a.reportsCount || 0));
+        filtered = filtered.filter(p => (p.reportsCount || 0) > 0);
     } else if (currentFilter === 'removed') {
-        filtered = allPosts.filter(p => p.status === 'blocked');
+        filtered = filtered.filter(p => p.status === 'blocked');
+    } else if (currentFilter === 'active') {
+        filtered = filtered.filter(p => (p.status || 'active') === 'active');
     }
 
+    // 2. Filtre par Ville
+    if (currentCity !== 'all') {
+        filtered = filtered.filter(p => p.city === currentCity);
+    }
+
+    // 3. Filtre par Recherche (Titre ou Description)
+    if (searchQuery) {
+        filtered = filtered.filter(p => 
+            (p.title || '').toLowerCase().includes(searchQuery) || 
+            (p.description || '').toLowerCase().includes(searchQuery)
+        );
+    }
+
+    // Tri (Signalés en premier si onglet signalé)
+    if (currentFilter === 'flagged') {
+        filtered.sort((a,b) => (b.reportsCount || 0) - (a.reportsCount || 0));
+    } else {
+        filtered.sort((a,b) => {
+            const d1 = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+            const d2 = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+            return d2 - d1;
+        });
+    }
+
+    renderTable(filtered);
+}
+
+function renderTable(data) {
+    const pubBody = document.getElementById("pub-tbody");
     pubBody.innerHTML = "";
-    if (filtered.length === 0) {
-        pubBody.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:40px; color:var(--ink-light)'>Aucune publication trouvée dans cette catégorie.</td></tr>";
+
+    if (data.length === 0) {
+        pubBody.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:40px; color:var(--ink-light)'>Aucun résultat ne correspond à vos filtres.</td></tr>";
         return;
     }
 
-    filtered.forEach(data => {
-        const title = data.title || "Sans titre";
-        let typeText = data.postType === 'perdu' ? "Perdu" : "Trouvé";
-        let typeClass = data.postType === 'perdu' ? "badge-lost" : "badge-found";
-        
-        const date = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString("fr-FR") : "-";
+    data.forEach(item => {
+        const title = item.title || "Sans titre";
+        let typeText = item.postType === 'perdu' ? "Perdu" : "Trouvé";
+        let typeClass = item.postType === 'perdu' ? "badge-lost" : "badge-found";
+        const date = item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("fr-FR") : "-";
         
         let statusText = "Active";
         let statusClass = "badge-active";
-        const st = data.status || 'active';
+        const st = item.status || 'active';
         if (st === 'en_attente') { statusText = "En attente"; statusClass = "badge-flagged"; }
         if (st === 'blocked') { statusText = "Bloqué"; statusClass = "badge-removed"; }
-        if ((data.reportsCount || 0) > 0) { statusText = `Signalé (${data.reportsCount})`; statusClass = "badge-flagged"; }
+        if ((item.reportsCount || 0) > 0) { statusText = `Signalé (${item.reportsCount})`; statusClass = "badge-flagged"; }
 
         const html = `
             <tr>
                 <td>
                     <div class="post-title-sm">${title}</div>
-                    <div class="post-sub-sm">${data.category || 'Autres'}</div>
+                    <div class="post-sub-sm">${item.category || 'Autres'}</div>
                 </td>
                 <td><span class="badge ${typeClass}">${typeText}</span></td>
-                <td>${data.city || 'N/A'}</td>
-                <td style="font-size:11px">${(data.authorPrenom || 'Vindora') + ' ' + (data.authorNom || 'User')}</td>
+                <td>${item.city || 'N/A'}</td>
+                <td style="font-size:11px">${(item.authorPrenom || 'Vindora') + ' ' + (item.authorNom || 'User')}</td>
                 <td>${date}</td>
                 <td><span class="badge ${statusClass}">${statusText}</span></td>
                 <td>
                     <div class="actions-cell">
-                        ${st === 'en_attente' ? `<button class="act-btn" onclick="adminApprovePost('${data.id}')">Approuver</button>` : ''}
-                        ${(data.reportsCount || 0) > 0 ? `<button class="act-btn warn-btn" onclick="ignorerSignalements('${data.id}')">Ignorer</button>` : ''}
-                        ${st !== 'blocked' ? `<button class="act-btn" onclick="bloquerPost('${data.id}')">Bloquer</button>` : ''}
-                        <button class="act-btn danger" onclick="adminDeletePost('${data.id}')">Supprimer</button>
+                        ${st === 'en_attente' ? `<button class="act-btn" onclick="adminApprovePost('${item.id}')">Approuver</button>` : ''}
+                        ${(item.reportsCount || 0) > 0 ? `<button class="act-btn warn-btn" onclick="ignorerSignalements('${item.id}')">Ignorer</button>` : ''}
+                        ${st !== 'blocked' ? `<button class="act-btn" onclick="bloquerPost('${item.id}')">Bloquer</button>` : ''}
+                        <button class="act-btn danger" onclick="adminDeletePost('${item.id}')">Supprimer</button>
                     </div>
                 </td>
             </tr>
@@ -159,14 +210,12 @@ function updateAdminStats() {
     const pending = allPosts.filter(p => p.status === 'en_attente').length;
     const flagged = allPosts.filter(p => (p.reportsCount || 0) > 0).length;
 
-    // Badges in sidebar
     const badgePending = document.getElementById("badge-pending-count");
     if (badgePending) {
         badgePending.textContent = pending;
         badgePending.style.display = pending > 0 ? 'block' : 'none';
     }
 
-    // Stat cards
     setText("admin-stat-total", total);
     setText("admin-stat-pending", pending);
     setText("admin-stat-flagged", flagged);
@@ -177,9 +226,6 @@ function setText(id, val) {
     if (el) el.textContent = val;
 }
 
-/**
- * RENDU DES UTILISATEURS
- */
 function renderUsers(users) {
     const userBody = document.getElementById("users-tbody");
     if (!userBody) return;
@@ -214,9 +260,6 @@ function renderUsers(users) {
     });
 }
 
-// Orchestrator
 onAuthStateChanged(auth, (user) => {
-    if (user) {
-        listenToAdminData();
-    }
+    if (user) listenToAdminData();
 });

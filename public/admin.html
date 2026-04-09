@@ -268,7 +268,7 @@
     <div class="topbar-right">
       <div class="topbar-search">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="opacity:0.4"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" placeholder="Rechercher..."/>
+        <input type="text" id="admin-search" placeholder="Rechercher..." oninput="setAdminSearch(this.value)"/>
       </div>
       <div class="admin-av" id="user-initials-top" style="width:38px;height:38px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:white;">AD</div>
     </div>
@@ -328,13 +328,14 @@
           <div class="section-sub">Gérez et modérez toutes les publications</div>
         </div>
         <div class="section-filter">
-          <select class="filter-select">
-            <option>Toutes</option>
-            <option>Signalées</option>
-            <option>Actives</option>
-            <option>Supprimées</option>
+          <select id="admin-status-dropdown" class="filter-select" onchange="setAdminFilter(this.value)">
+            <option value="all">Toutes</option>
+            <option value="pending">En attente</option>
+            <option value="flagged">Signalées</option>
+            <option value="active">Actives</option>
+            <option value="removed">Bloquées</option>
           </select>
-          <select id="admin-filter-city" class="filter-select">
+          <select id="admin-filter-city" class="filter-select" onchange="setAdminCity(this.value)">
             <option>Toutes les villes</option>
           </select>
         </div>
