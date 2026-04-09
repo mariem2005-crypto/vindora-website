@@ -676,7 +676,9 @@
             authorUid: window.currentUser.uid,
             authorNom: window.currentUser.nom,
             authorPrenom: window.currentUser.prenom,
-            status: "active",
+            status: "en_attente",
+            reportsCount: 0,
+            reportedBy: [],
             createdAt: serverTimestamp()
         });
 

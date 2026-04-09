@@ -1,209 +1,222 @@
-
 import { auth, db } from "./firebase-config.js";
-import { collection, getDocs, doc, deleteDoc, updateDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { 
+    collection, getDocs, doc, deleteDoc, updateDoc, addDoc, 
+    onSnapshot, query, where, orderBy, serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 import { populateCitySelect } from "./locationService.js";
+
+// Global data store for filtering
+let allPosts = [];
+let currentFilter = 'all'; 
 
 // Initialisation des villes dans le filtre admin
 populateCitySelect("admin-filter-city", { includeAll: true, defaultText: "Toutes les villes" });
 
-// ====== POSTS MODERATION ======
+/**
+ * MODÉRATION : Actions Firestore
+ */
 window.adminDeletePost = async function(postId) {
-    if (!confirm("Voulez-vous vraiment supprimer cette publication définitivement (Admin) ?")) return;
+    if (!confirm("Voulez-vous vraiment supprimer cette publication définitivement ?")) return;
     try {
         await deleteDoc(doc(db, "posts", postId));
-        if (window.showToast) window.showToast("Publication supprimée avec succès.");
-        loadAllPosts();
+        if (window.showToast) window.showToast("Publication supprimée.");
     } catch (error) {
         console.error("Erreur suppression post :", error);
-        alert("Erreur de suppression.");
     }
 };
 
 window.adminApprovePost = async function(postId) {
     try {
-        await updateDoc(doc(db, "posts", postId), { status: "active" });
-        if (window.showToast) window.showToast("Publication approuvée et rendue active.");
-        loadAllPosts();
+        await updateDoc(doc(db, "posts", postId), { 
+            status: "active",
+            reportsCount: 0 // Reset reports if approving
+        });
+        if (window.showToast) window.showToast("Publication approuvée !");
     } catch (error) {
         console.error("Erreur approbation post :", error);
     }
 };
 
-async function loadAllPosts() {
-    const pubBody = document.getElementById("pub-tbody");
-    if (!pubBody) return;
-    pubBody.innerHTML = "";
-
+window.bloquerPost = async function(postId) {
+    if (!confirm("Bloquer cette publication ? Elle ne sera plus visible.")) return;
     try {
-        const querySnapshot = await getDocs(collection(db, "posts"));
-        
-        if (querySnapshot.empty) {
-            pubBody.innerHTML = "<tr><td colspan='7' style='text-align:center;'>Aucune publication en base.</td></tr>";
-            return;
-        }
-
-        querySnapshot.forEach(function(documentSnapshot) {
-            const data = documentSnapshot.data();
-            const docId = documentSnapshot.id;
-
-            const title = data.title || "Sans titre";
-            let typeText = "Trouvé";
-            let typeBadgeClass = "badge-found";
-            let pt = (data.postType || "").toLowerCase();
-            if (pt === "lost" || pt === "perdu") {
-                typeText = "Perdu";
-                typeBadgeClass = "badge-lost";
-            }
-
-            const city = data.city || "N/A";
-            const uidDisplay = data.authorUid ? data.authorUid.substring(0, 6) + "..." : "Inconnu";
-
-            let statusText = "Active";
-            let statusBadgeClass = "badge-active";
-            const postStatus = (data.status || "active").toLowerCase();
-            if (postStatus.includes("resolu") || postStatus === "resolved") {
-                statusText = "Résolue";
-                statusBadgeClass = "badge-active"; // fallback
-            } else if (postStatus === "pending" || postStatus === "flagged") {
-                statusText = "Signalée";
-                statusBadgeClass = "badge-flagged";
-            }
-
-            let dateStr = "-";
-            if (data.createdAt && data.createdAt.seconds) {
-                dateStr = new Date(data.createdAt.seconds * 1000).toLocaleDateString("fr-FR");
-            }
-
-            // String Concatenation standard
-            let html = "";
-            html += "<tr data-status='" + postStatus + "'>";
-            html += "  <td>";
-            html += "    <div class='post-title-sm'>" + title + "</div>";
-            html += "    <div class='post-sub-sm'>" + (data.category || "Catégorie") + "</div>";
-            html += "  </td>";
-            html += "  <td><span class='badge " + typeBadgeClass + "'>" + typeText + "</span></td>";
-            html += "  <td>" + city + "</td>";
-            html += "  <td style='font-size: 11px'>" + uidDisplay + "</td>";
-            html += "  <td>" + dateStr + "</td>";
-            html += "  <td><span class='badge " + statusBadgeClass + "'>" + statusText + "</span></td>";
-            html += "  <td>";
-            html += "    <div class='actions-cell'>";
-            html += "      <button class='act-btn' onclick='adminApprovePost(\"" + docId + "\")'>Approuver</button>";
-            html += "      <button class='act-btn danger' onclick='adminDeletePost(\"" + docId + "\")'>Supprimer</button>";
-            html += "    </div>";
-            html += "  </td>";
-            html += "</tr>";
-
-            pubBody.insertAdjacentHTML("beforeend", html);
-        });
+        await updateDoc(doc(db, "posts", postId), { status: "blocked" });
+        if (window.showToast) window.showToast("Publication bloquée.");
     } catch (error) {
-        console.error("Erreur chargement all posts :", error);
+        console.error("Erreur blocage post :", error);
     }
+};
+
+window.ignorerSignalements = async function(postId) {
+    try {
+        await updateDoc(doc(db, "posts", postId), { 
+            reportsCount: 0,
+            reportedBy: []
+        });
+        if (window.showToast) window.showToast("Signalements ignorés.");
+    } catch (error) {
+        console.error("Erreur ignore signalements :", error);
+    }
+};
+
+/**
+ * ÉCOUTEURS TEMPS RÉEL
+ */
+function listenToAdminData() {
+    // 1. Écouter les Posts
+    const postsRef = collection(db, "posts");
+    onSnapshot(postsRef, (snapshot) => {
+        allPosts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderFilteredPosts();
+        updateAdminStats();
+    });
+
+    // 2. Écouter les Utilisateurs
+    const usersRef = collection(db, "users");
+    onSnapshot(usersRef, (snapshot) => {
+        const users = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderUsers(users);
+        const userCountEl = document.getElementById("admin-stat-users");
+        if (userCountEl) userCountEl.textContent = users.length;
+    });
 }
 
-// ====== USERS MANAGEMENT ======
-window.adminDeleteUser = async function(userId) {
-    if (!confirm("Voulez-vous supprimer ce profil utilisateur ? Son accès à l'application sera corrompu.")) return;
-    try {
-        await deleteDoc(doc(db, "users", userId));
-        if (window.showToast) window.showToast("Utilisateur supprimé Firestore.");
-        loadAllUsers();
-    } catch (error) {
-        console.error("Erreur suppression user :", error);
-    }
+/**
+ * RENDU DES PUBLICATIONS
+ */
+window.setAdminFilter = function(filter) {
+    currentFilter = filter;
+    renderFilteredPosts();
+    
+    // Update tabs UI
+    document.querySelectorAll('.stab').forEach(btn => {
+        const type = btn.getAttribute('onclick').match(/'([^']+)'/)[1];
+        btn.classList.toggle('active', type === filter);
+    });
 };
 
-window.adminSendAlert = async function(userId) {
-    try {
-        // Ajouter un doc dans la collection 'notifications'
-        await addDoc(collection(db, "notifications"), {
-            userId: userId,
-            message: "Avertissement de la modération : L'une de vos annonces a été signalée car elle enfreint nos règles d'utilisation.",
-            read: false,
-            createdAt: serverTimestamp()
-        });
-        if (window.showToast) window.showToast("Alerte envoyée à l'utilisateur.");
-        loadAllUsers();
-    } catch (error) {
-        console.error("Erreur lors de l'envoi de l'alerte :", error);
-    }
-};
+function renderFilteredPosts() {
+    const pubBody = document.getElementById("pub-tbody");
+    if (!pubBody) return;
 
-async function loadAllUsers() {
+    let filtered = allPosts;
+    if (currentFilter === 'pending') {
+        filtered = allPosts.filter(p => (p.status || 'active') === 'en_attente');
+    } else if (currentFilter === 'flagged') {
+        filtered = allPosts.filter(p => (p.reportsCount || 0) > 0).sort((a,b) => (b.reportsCount || 0) - (a.reportsCount || 0));
+    } else if (currentFilter === 'removed') {
+        filtered = allPosts.filter(p => p.status === 'blocked');
+    }
+
+    pubBody.innerHTML = "";
+    if (filtered.length === 0) {
+        pubBody.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:40px; color:var(--ink-light)'>Aucune publication trouvée dans cette catégorie.</td></tr>";
+        return;
+    }
+
+    filtered.forEach(data => {
+        const title = data.title || "Sans titre";
+        let typeText = data.postType === 'perdu' ? "Perdu" : "Trouvé";
+        let typeClass = data.postType === 'perdu' ? "badge-lost" : "badge-found";
+        
+        const date = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString("fr-FR") : "-";
+        
+        let statusText = "Active";
+        let statusClass = "badge-active";
+        const st = data.status || 'active';
+        if (st === 'en_attente') { statusText = "En attente"; statusClass = "badge-flagged"; }
+        if (st === 'blocked') { statusText = "Bloqué"; statusClass = "badge-removed"; }
+        if ((data.reportsCount || 0) > 0) { statusText = `Signalé (${data.reportsCount})`; statusClass = "badge-flagged"; }
+
+        const html = `
+            <tr>
+                <td>
+                    <div class="post-title-sm">${title}</div>
+                    <div class="post-sub-sm">${data.category || 'Autres'}</div>
+                </td>
+                <td><span class="badge ${typeClass}">${typeText}</span></td>
+                <td>${data.city || 'N/A'}</td>
+                <td style="font-size:11px">${(data.authorPrenom || 'Vindora') + ' ' + (data.authorNom || 'User')}</td>
+                <td>${date}</td>
+                <td><span class="badge ${statusClass}">${statusText}</span></td>
+                <td>
+                    <div class="actions-cell">
+                        ${st === 'en_attente' ? `<button class="act-btn" onclick="adminApprovePost('${data.id}')">Approuver</button>` : ''}
+                        ${(data.reportsCount || 0) > 0 ? `<button class="act-btn warn-btn" onclick="ignorerSignalements('${data.id}')">Ignorer</button>` : ''}
+                        ${st !== 'blocked' ? `<button class="act-btn" onclick="bloquerPost('${data.id}')">Bloquer</button>` : ''}
+                        <button class="act-btn danger" onclick="adminDeletePost('${data.id}')">Supprimer</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+        pubBody.insertAdjacentHTML("beforeend", html);
+    });
+}
+
+function updateAdminStats() {
+    const total = allPosts.length;
+    const pending = allPosts.filter(p => p.status === 'en_attente').length;
+    const flagged = allPosts.filter(p => (p.reportsCount || 0) > 0).length;
+
+    // Badges in sidebar
+    const badgePending = document.getElementById("badge-pending-count");
+    if (badgePending) {
+        badgePending.textContent = pending;
+        badgePending.style.display = pending > 0 ? 'block' : 'none';
+    }
+
+    // Stat cards
+    setText("admin-stat-total", total);
+    setText("admin-stat-pending", pending);
+    setText("admin-stat-flagged", flagged);
+}
+
+function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+}
+
+/**
+ * RENDU DES UTILISATEURS
+ */
+function renderUsers(users) {
     const userBody = document.getElementById("users-tbody");
     if (!userBody) return;
     userBody.innerHTML = "";
 
-    try {
-        const querySnapshot = await getDocs(collection(db, "users"));
+    users.forEach(data => {
+        const name = `${data.prenom || ''} ${data.nom || ''}`.trim() || "Utilisateur Vindora";
+        const initials = (name.split(' ').map(n => n[0]).join('') || "UV").toUpperCase();
         
-        if (querySnapshot.empty) {
-            userBody.innerHTML = "<tr><td colspan='5' style='text-align:center;'>Aucun utilisateur trouvé.</td></tr>";
-            return;
-        }
-
-        querySnapshot.forEach(function(documentSnapshot) {
-            const data = documentSnapshot.data();
-            const docId = documentSnapshot.id;
-
-            let fullName = (data.prenom || "") + " " + (data.nom || "");
-            fullName = fullName.trim() || "Utilisateur inconnu";
-            const initiales = (data.prenom ? data.prenom.charAt(0) : "") + (data.nom ? data.nom.charAt(0) : "") || "?";
-            const email = data.email || "Email inconnu";
-            const role = data.role || "user";
-            
-            let statusText = role === "admin" ? "Admin" : "Normal";
-            let statusClass = role === "admin" ? "badge-normal" : "badge-normal";
-
-            let html = "";
-            html += "<tr>";
-            html += "  <td>";
-            html += "    <div class='user-cell'>";
-            html += "      <div class='user-av-sm' style='background:var(--grad)'>" + initiales + "</div>";
-            html += "      <div>";
-            html += "        <div class='user-name-sm'>" + fullName + "</div>";
-            html += "        <div class='user-email-sm'>" + email + "</div>";
-            html += "      </div>";
-            html += "    </div>";
-            html += "  </td>";
-            html += "  <td>-</td>";
-            html += "  <td>-</td>";
-            html += "  <td><span class='badge " + statusClass + "'>" + statusText + "</span></td>";
-            html += "  <td>";
-            html += "    <div class='actions-cell'>";
-            if (role !== "admin") {
-                html += "      <button class='act-btn warn-btn' onclick='adminSendAlert(\"" + docId + "\")'>Alerter</button>";
-                html += "      <button class='act-btn danger' onclick='adminDeleteUser(\"" + docId + "\")'>Supprimer</button>";
-            } else {
-                html += "      <span style='font-size:11px;color:gray'>Protégé</span>";
-            }
-            html += "    </div>";
-            html += "  </td>";
-            html += "</tr>";
-
-            userBody.insertAdjacentHTML("beforeend", html);
-        });
-    } catch (error) {
-        console.error("Erreur chargement users :", error);
-    }
+        const html = `
+            <tr>
+                <td>
+                    <div class="user-cell">
+                        <div class="user-av-sm" style="background:var(--grad)">${initials}</div>
+                        <div>
+                            <div class="user-name-sm">${name}</div>
+                            <div class="user-email-sm">${data.email || 'N/A'}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>-</td>
+                <td>-</td>
+                <td><span class="badge badge-normal">${data.role || 'user'}</span></td>
+                <td>
+                    <div class="actions-cell">
+                        <button class="act-btn danger" onclick="adminDeleteUser('${data.id}')">Supprimer</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+        userBody.insertAdjacentHTML("beforeend", html);
+    });
 }
 
-// ====== ORCHESTRATOR ======
-onAuthStateChanged(auth, function(user) {
+// Orchestrator
+onAuthStateChanged(auth, (user) => {
     if (user) {
-        // Double security check to ensure loadAllPosts doesn't run for unauthorized UI glitching
-        if(window.currentUser && window.currentUser.role === 'admin') {
-            loadAllPosts();
-            loadAllUsers();
-        } else {
-            // We can assume session.js will kick them out, but we let's wait a bit and load anyway 
-            // since session.js sets window.currentUser asynchronously.
-            // A safer approach:
-            setTimeout(() => {
-                loadAllPosts();
-                loadAllUsers();
-            }, 800);
-        }
+        listenToAdminData();
     }
 });

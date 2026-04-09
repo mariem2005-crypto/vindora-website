@@ -1,7 +1,7 @@
 import { auth, db } from "./firebase-config.js";
 import { 
     doc, getDoc, getDocs, collection, addDoc, onSnapshot, query, where, orderBy, limit, 
-    updateDoc, arrayUnion, arrayRemove, serverTimestamp 
+    updateDoc, arrayUnion, arrayRemove, serverTimestamp, increment 
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
@@ -304,6 +304,36 @@ window.toggleFav = async () => {
         refreshLikeUI();
     } catch (e) {
         console.error("Error toggleFav:", e);
+    }
+};
+
+window.reportPost = async () => {
+    if (!window.currentUser) {
+        if (window.showToast) window.showToast("Connectez-vous pour signaler.");
+        return;
+    }
+
+    if (currentPostData.reportedBy && currentPostData.reportedBy.includes(window.currentUser.uid)) {
+        if (window.showToast) window.showToast("Vous avez déjà signalé cette publication.");
+        return;
+    }
+
+    if (!confirm("Souhaitez-vous signaler cette publication pour contenu inapproprié ?")) return;
+
+    try {
+        const postRef = doc(db, "posts", postId);
+        await updateDoc(postRef, {
+            reportsCount: increment(1),
+            reportedBy: arrayUnion(window.currentUser.uid)
+        });
+        if (window.showToast) window.showToast("Signalement envoyé à la modération.");
+        
+        // Update local data to prevent double report immediately
+        if (!currentPostData.reportedBy) currentPostData.reportedBy = [];
+        currentPostData.reportedBy.push(window.currentUser.uid);
+        
+    } catch (error) {
+        console.error("Error reporting post:", error);
     }
 };
 

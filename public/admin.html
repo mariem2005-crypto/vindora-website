@@ -226,7 +226,7 @@
     <a class="nav-item active" href="#" onclick="event.preventDefault();showSection('publications')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       Publications
-      <span class="nav-badge">3</span>
+      <span class="nav-badge" id="badge-pending-count" style="display:none">0</span>
     </a>
     <a class="nav-item" href="#" onclick="event.preventDefault();showSection('users')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
@@ -284,9 +284,8 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2A6DD9" stroke-width="2.2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         </div>
         <div class="stat-body">
-          <div class="stat-num">124</div>
+          <div class="stat-num" id="admin-stat-total">0</div>
           <div class="stat-label">Publications totales</div>
-          <div class="stat-delta delta-up">+12 cette semaine</div>
         </div>
       </div>
       <div class="stat-card" style="animation-delay:0.10s">
@@ -294,7 +293,7 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E03B3B" stroke-width="2.2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </div>
         <div class="stat-body">
-          <div class="stat-num">3</div>
+          <div class="stat-num" id="admin-stat-flagged">0</div>
           <div class="stat-label">Signalées</div>
           <div class="stat-delta delta-down">À traiter</div>
         </div>
@@ -304,9 +303,9 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0A9E6E" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
         </div>
         <div class="stat-body">
-          <div class="stat-num">48</div>
-          <div class="stat-label">Utilisateurs</div>
-          <div class="stat-delta delta-up">+5 ce mois</div>
+          <div class="stat-num" id="admin-stat-pending">0</div>
+          <div class="stat-label">En attente</div>
+          <div class="stat-delta delta-up">Nouveaux posts</div>
         </div>
       </div>
       <div class="stat-card" style="animation-delay:0.20s">
@@ -342,9 +341,10 @@
       </div>
 
       <div class="section-tabs" style="margin-bottom:20px">
-        <button class="stab active" onclick="filterPubs(this,'all')">Toutes (124)</button>
-        <button class="stab" onclick="filterPubs(this,'flagged')">Signalées (3)</button>
-        <button class="stab" onclick="filterPubs(this,'removed')">Supprimées (8)</button>
+        <button class="stab active" onclick="setAdminFilter('all')">Toutes</button>
+        <button class="stab" onclick="setAdminFilter('pending')">En attente</button>
+        <button class="stab" onclick="setAdminFilter('flagged')">Signalées</button>
+        <button class="stab" onclick="setAdminFilter('removed')">Bloquées</button>
       </div>
 
       <div class="table-wrap">
