@@ -506,7 +506,6 @@
 
   function selectRole(role) {
     window.currentRole = role;
-    console.log("🛠️ Rôle cliqué :", window.currentRole);
     const user  = document.getElementById('role-user');
     const admin = document.getElementById('role-admin');
     user.classList.toggle('selected', role === 'user');

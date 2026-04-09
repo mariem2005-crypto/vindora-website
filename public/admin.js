@@ -1,4 +1,3 @@
-console.log("Admin Dashboard Logic - Initializing...");
 
 import { auth, db } from "./firebase-config.js";
 import { collection, getDocs, doc, deleteDoc, updateDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";

@@ -223,7 +223,7 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Publier
     </a>
-    <div class="avatar" onclick="window.location.href='profile.html'" style="cursor:pointer">AB</div>
+    <div class="avatar" onclick="window.location.href='profile.html'" style="cursor:pointer" id="user-initials">AB</div>
   </div>
 </nav>
 
@@ -235,9 +235,9 @@
       <p>Suivez vos échanges et réponses sur les publications</p>
     </div>
     <div class="header-stats">
-      <div class="hstat"><div class="hstat-num">11</div><div class="hstat-label">Total</div></div>
-      <div class="hstat"><div class="hstat-num">3</div><div class="hstat-label">Non lus</div></div>
-      <div class="hstat"><div class="hstat-num">4</div><div class="hstat-label">Fils actifs</div></div>
+      <div class="hstat"><div class="hstat-num" id="stat-total">0</div><div class="hstat-label">Total</div></div>
+      <div class="hstat"><div class="hstat-num" id="stat-unread">0</div><div class="hstat-label">Non lus</div></div>
+      <div class="hstat"><div class="hstat-num" id="stat-threads">0</div><div class="hstat-label">Fils actifs</div></div>
     </div>
   </div>
 </div>
@@ -249,14 +249,20 @@
     <!-- TOOLBAR -->
     <div class="toolbar">
       <div class="tab-filter">
-        <button class="tf-btn active" onclick="filterThreads(this,'all')">Tous (4)</button>
-        <button class="tf-btn" onclick="filterThreads(this,'mine')">Mes commentaires (3)</button>
-        <button class="tf-btn" onclick="filterThreads(this,'replies')">Réponses reçues (3)</button>
+        <button class="tf-btn active" id="btn-tab-all" onclick="filterThreads(this,'all')">Tous (0)</button>
+        <button class="tf-btn" id="btn-tab-mine" onclick="filterThreads(this,'mine')">Mes commentaires (0)</button>
+        <button class="tf-btn" id="btn-tab-replies" onclick="filterThreads(this,'replies')">Réponses reçues (0)</button>
       </div>
     </div>
 
     <!-- DYNAMIC THREADS -->
-    <div id=" comments-wrapper\></div>
+    <div id="comments-wrapper"></div>
+    
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">💬</div>
+      <div class="empty-title">Aucun commentaire</div>
+      <div class="empty-sub">Vous n'avez pas encore d'activité de commentaire.</div>
+    </div>
   <!-- SIDEBAR -->
   <div class="sidebar">
 
@@ -266,33 +272,8 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         Activité récente
       </div>
-      <div class="activity-item">
-        <div class="activity-dot" style="background:#0A9E6E"></div>
-        <div>
-          <div class="activity-text"><strong>Nour Ben Ali</strong> a répondu à votre commentaire sur le Sac Nike</div>
-          <div class="activity-time">Il y a 3h</div>
-        </div>
-      </div>
-      <div class="activity-item">
-        <div class="activity-dot" style="background:#3B3BDB"></div>
-        <div>
-          <div class="activity-text"><strong>Sarra Miled</strong> a trouvé votre commentaire utile</div>
-          <div class="activity-time">Il y a 1h</div>
-        </div>
-      </div>
-      <div class="activity-item">
-        <div class="activity-dot" style="background:#F59E0B"></div>
-        <div>
-          <div class="activity-text"><strong>Karim Ayari</strong> a commenté sur le Portefeuille cuir</div>
-          <div class="activity-time">02 Mar, 14h10</div>
-        </div>
-      </div>
-      <div class="activity-item">
-        <div class="activity-dot" style="background:#8B5CF6"></div>
-        <div>
-          <div class="activity-text">Vous avez commenté sur le Trousseau de clés</div>
-          <div class="activity-time">Hier, 16h30</div>
-        </div>
+      <div id="activity-list">
+         <!-- Rempli dynamiquement -->
       </div>
     </div>
 
@@ -307,21 +288,21 @@
           <div class="notif-label">Réponses à mes commentaires</div>
           <div class="notif-sub">Être notifié quand quelqu'un répond</div>
         </div>
-        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+        <button class="toggle" id="toggle-replies" onclick="window.toggleSetting('replies')"></button>
       </div>
       <div class="notif-row">
         <div>
           <div class="notif-label">Commentaires utiles</div>
           <div class="notif-sub">Quand un commentaire est marqué utile</div>
         </div>
-        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+        <button class="toggle" id="toggle-useful" onclick="window.toggleSetting('useful')"></button>
       </div>
       <div class="notif-row">
         <div>
           <div class="notif-label">Nouvelles réponses sur mes posts</div>
           <div class="notif-sub">Commentaires sur mes publications</div>
         </div>
-        <button class="toggle" onclick="this.classList.toggle('on')"></button>
+        <button class="toggle" id="toggle-new-on-posts" onclick="window.toggleSetting('newOnPosts')"></button>
       </div>
     </div>
 

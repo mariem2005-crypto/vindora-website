@@ -1,4 +1,3 @@
-console.log("Running Notifications Script V1");
 
 import { auth, db } from "./firebase-config.js";
 import { collection, query, where, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";

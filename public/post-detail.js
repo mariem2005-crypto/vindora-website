@@ -183,6 +183,9 @@ window.sendComment = async () => {
     try {
         const commRef = collection(db, "posts", postId, "comments");
         await addDoc(commRef, {
+            postId: postId,
+            postTitle: currentPostData.title || "Titre inconnu",
+            postOwnerUid: currentPostData.authorUid || "",
             text: text,
             authorUid: window.currentUser.uid,
             authorName: `${window.currentUser.prenom} ${window.currentUser.nom}`,

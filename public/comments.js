@@ -1,211 +1,267 @@
 import { auth, db } from "./firebase-config.js";
-import { collectionGroup, query, where, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { collectionGroup, query, where, getDocs, deleteDoc, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
-let currentUser = null;
 let allComments = [];
+let currentFilter = 'all';
 
+/**
+ * INITIALISATION
+ */
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        currentUser = user;
+        await initSettings();
         await fetchComments();
     } else {
         window.location.href = "index.html";
     }
 });
 
+/**
+ * RÉCUPÉRATION DES PARAMÈTRES (SETTINGS)
+ */
+async function initSettings() {
+    if (!auth.currentUser) return;
+    try {
+        const userRef = doc(db, "users", auth.currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+            const data = userSnap.data();
+            const settings = data.settings || {};
+            
+            // Appliquer l'état aux toggles
+            applyToggleState("toggle-replies", settings.replies !== false); // Par défaut true
+            applyToggleState("toggle-useful", settings.useful !== false);
+            applyToggleState("toggle-new-on-posts", settings.newOnPosts !== false);
+        }
+    } catch (e) {
+        // Fallback muet
+    }
+}
+
+function applyToggleState(id, isOn) {
+    const el = document.getElementById(id);
+    if (el) {
+        if (isOn) el.classList.add("on");
+        else el.classList.remove("on");
+    }
+}
+
+/**
+ * PERSISTANCE DES PARAMÈTRES
+ */
+window.toggleSetting = async (key) => {
+    if (!auth.currentUser) return;
+    
+    const idMap = {
+        'replies': 'toggle-replies',
+        'useful': 'toggle-useful',
+        'newOnPosts': 'toggle-new-on-posts'
+    };
+    
+    const el = document.getElementById(idMap[key]);
+    if (!el) return;
+    
+    const newState = !el.classList.contains("on");
+    applyToggleState(idMap[key], newState);
+    
+    try {
+        const userRef = doc(db, "users", auth.currentUser.uid);
+        await updateDoc(userRef, {
+            [`settings.${key}`]: newState
+        });
+        if (window.showToast) window.showToast("Préférence enregistrée.");
+    } catch (e) {
+        // En cas d'erreur Firestore (ex: permissions), revert l'UI
+        applyToggleState(idMap[key], !newState);
+    }
+};
+
+/**
+ * RÉCUPÉRATION DES COMMENTAIRES (GROUP QUERY)
+ */
 async function fetchComments() {
-    if (!currentUser) return;
+    if (!auth.currentUser) return;
+    const uid = auth.currentUser.uid;
 
     try {
-        const uid = currentUser.uid;
+        // 1. Commentaires écrits par moi
+        const qMine = query(collectionGroup(db, "comments"), where("authorUid", "==", uid));
+        const snapMine = await getDocs(qMine);
         
-        // Fetch comments I wrote
-        const myCommentsQuery = query(
-            collectionGroup(db, "comments"),
-            where("authorUid", "==", uid)
-        );
-        const myCommentsSnap = await getDocs(myCommentsQuery);
-        
-        // Fetch comments written to me (on posts I own)
-        const myReceivedQuery = query(
-            collectionGroup(db, "comments"),
-            where("postOwnerUid", "==", uid)
-        );
-        const myReceivedSnap = await getDocs(myReceivedQuery);
+        // 2. Réponses reçues sur mes posts
+        const qReplies = query(collectionGroup(db, "comments"), where("postOwnerUid", "==", uid));
+        const snapReplies = await getDocs(qReplies);
 
-        const fetchedMap = new Map();
+        const map = new Map();
 
-        myCommentsSnap.forEach(docSnap => {
-            const data = docSnap.data();
-            data.id = docSnap.id;
-            data.docRef = docSnap.ref; // For deletion
-            data.isMine = true;
-            fetchedMap.set(data.id, data);
+        snapMine.forEach(d => {
+            const data = d.data();
+            map.set(d.id, { id: d.id, docRef: d.ref, isMine: true, ...data });
         });
 
-        myReceivedSnap.forEach(docSnap => {
-            if (!fetchedMap.has(docSnap.id)) {
-                const data = docSnap.data();
-                data.id = docSnap.id;
-                data.docRef = docSnap.ref;
-                data.isMine = (data.authorUid === uid); 
-                fetchedMap.set(data.id, data);
+        snapReplies.forEach(d => {
+            if (!map.has(d.id)) {
+                const data = d.data();
+                map.set(d.id, { id: d.id, docRef: d.ref, isMine: (data.authorUid === uid), ...data });
             }
         });
 
-        allComments = Array.from(fetchedMap.values());
-        
-        // Sort descending by date
-        allComments.sort((a, b) => {
-            const timeA = a.createdAt ? a.createdAt.toMillis() : 0;
-            const timeB = b.createdAt ? b.createdAt.toMillis() : 0;
-            return timeB - timeA;
+        allComments = Array.from(map.values()).sort((a, b) => {
+            const tA = a.createdAt ? a.createdAt.toMillis() : 0;
+            const tB = b.createdAt ? b.createdAt.toMillis() : 0;
+            return tB - tA;
         });
 
-        updateStats();
-        renderComments('all');
+        renderStats();
+        renderActivity();
+        renderComments(currentFilter);
 
-    } catch (err) {
-        console.error("Error fetching comments. Note: This requires a Firestore Composite Index if errors point to missing indexes.", err);
-        if (err.message.includes("requires an index")) {
-            console.error("Please click the Firebase link above in your console to build the index.");
-            if (window.showToast) window.showToast("La construction de d'index Firebase est requise ! Vérifiez vos logs.");
+    } catch (e) {
+        if (e.message.includes("requires an index")) {
+            if (window.showToast) window.showToast("Index Firestore manquant : voir console.");
+            console.error("Index requis :", e.message);
         }
     }
 }
 
-function updateStats() {
-    const totalCount = allComments.length;
-    // Basic heuristics for stats purely for UI sake based on the DB layout
-    const activeThreadsCount = new Set(allComments.map(c => c.postId)).size;
-    
-    const statNums = document.querySelectorAll(".hstat-num");
-    if (statNums.length >= 3) {
-        statNums[0].textContent = totalCount;
-        statNums[1].textContent = "0"; // Non lus (Requires explicit read/unread boolean fields)
-        statNums[2].textContent = activeThreadsCount;
-    }
+/**
+ * STATISTIQUES ET TABS
+ */
+function renderStats() {
+    const total = allComments.length;
+    const mine = allComments.filter(c => c.isMine).length;
+    const replies = allComments.filter(c => !c.isMine).length;
+    const threads = new Set(allComments.map(c => c.postId)).size;
 
-    const tBtnAll = document.querySelector(".tf-btn[onclick*=\"'all'\"]");
-    const tBtnMine = document.querySelector(".tf-btn[onclick*=\"'mine'\"]");
-    const tBtnReplies = document.querySelector(".tf-btn[onclick*=\"'replies'\"]");
-    
-    if (tBtnAll) tBtnAll.textContent = `Tous (${totalCount})`;
-    if (tBtnMine) tBtnMine.textContent = `Mes commentaires (${allComments.filter(c => c.isMine).length})`;
-    if (tBtnReplies) tBtnReplies.textContent = `Réponses reçues (${allComments.filter(c => !c.isMine).length})`;
+    const setText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+    };
+
+    setText("stat-total", total);
+    setText("stat-threads", threads);
+    setText("stat-unread", replies); // Simulé comme "Non lus" pour l'exemple
+
+    setText("btn-tab-all", `Tous (${total})`);
+    setText("btn-tab-mine", `Mes commentaires (${mine})`);
+    setText("btn-tab-replies", `Réponses reçues (${replies})`);
 }
 
-function renderComments(filterType) {
+/**
+ * ACTIVITÉ RÉCENTE (SIDEBAR)
+ */
+function renderActivity() {
+    const activityList = document.getElementById("activity-list");
+    if (!activityList) return;
+
+    // Prendre les 4 derniers commentaires
+    const recent = allComments.slice(0, 4);
+    activityList.innerHTML = "";
+
+    recent.forEach(c => {
+        const dotBg = c.isMine ? "#8B5CF6" : "#0A9E6E";
+        const text = c.isMine 
+            ? `Vous avez commenté sur <strong>${c.postTitle || 'un post'}</strong>`
+            : `<strong>${c.authorName}</strong> a répondu à votre publication <strong>${c.postTitle || ''}</strong>`;
+        
+        const date = c.createdAt ? c.createdAt.toDate().toLocaleDateString("fr-FR", { day: '2-digit', month: 'short' }) : "Récemment";
+
+        const html = `
+            <div class="activity-item">
+                <div class="activity-dot" style="background:${dotBg}"></div>
+                <div>
+                    <div class="activity-text">${text}</div>
+                    <div class="activity-time">${date}</div>
+                </div>
+            </div>
+        `;
+        activityList.insertAdjacentHTML("beforeend", html);
+    });
+}
+
+/**
+ * RENDU DES COMMENTAIRES
+ */
+function renderComments(filter) {
     const wrapper = document.getElementById("comments-wrapper");
+    const emptyState = document.getElementById("empty-state");
     if (!wrapper) return;
 
     wrapper.innerHTML = "";
-
+    
     const filtered = allComments.filter(c => {
-        if (filterType === 'all') return true;
-        if (filterType === 'mine') return c.isMine;
-        if (filterType === 'replies') return !c.isMine;
+        if (filter === 'all') return true;
+        if (filter === 'mine') return c.isMine;
+        if (filter === 'replies') return !c.isMine;
         return true;
     });
 
-    const emptyState = document.getElementById("empty-state");
     if (filtered.length === 0) {
         if (emptyState) emptyState.style.display = "block";
         return;
-    } else {
-        if (emptyState) emptyState.style.display = "none";
     }
+    if (emptyState) emptyState.style.display = "none";
 
-    filtered.forEach((comment, i) => {
-        const timeStr = comment.createdAt ? 
-            comment.createdAt.toDate().toLocaleDateString("fr-FR", { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) 
-            : "Récemment";
-            
-        const auName = comment.authorName || "Anonyme";
-        const initials = auName.substring(0, 2).toUpperCase();
-
-        const tag = comment.isMine ? `<span class="comment-mine-tag">Vous</span>` : '';
-        const title = comment.postTitle || "Publication Inconnue";
+    filtered.forEach((c, idx) => {
+        const initials = c.authorName ? c.authorName.split(" ").map(n => n[0]).join("").toUpperCase() : "??";
+        const date = c.createdAt ? c.createdAt.toDate().toLocaleDateString("fr-FR", { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : "Récent";
         
-        let delBtn = "";
-        if (comment.isMine) {
-            delBtn = `
-              <button class="comment-action delete-action" onclick="window.deleteMyComment('${comment.id}')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                Supprimer
-              </button>`;
-        }
-
-        const dom = `
-        <div class="thread-card" style="animation-delay:${i * 0.05}s">
-          <a class="thread-post" href="post-detail.html?id=${comment.postId}">
-            <div class="post-thumb" style="background:#EEF2FF">
-                <svg class="obj-icon" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="10" fill="#EEF2FF"/><rect x="10" y="5" width="12" height="22" rx="3" stroke="#3B3BDB" stroke-width="1.8"/><line x1="14" y1="23" x2="18" y2="23" stroke="#3B3BDB" stroke-width="2" stroke-linecap="round"/><rect x="13" y="8" width="6" height="1.5" rx="0.75" fill="#3B3BDB" opacity="0.35"/></svg>
-            </div>
+        const html = `
+        <div class="thread-card" style="animation-delay:${idx * 0.05}s">
+          <a class="thread-post" href="post-detail.html?id=${c.postId}">
+            <div class="post-thumb" style="background:var(--grad-soft); font-size:18px;">📄</div>
             <div class="post-ref-info">
               <div class="post-ref-label">Publication</div>
-              <div class="post-ref-title">${title}</div>
+              <div class="post-ref-title">${c.postTitle || 'Annonce'}</div>
             </div>
             <svg class="thread-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
           </a>
           <div class="thread-comments">
-            <div class="comment-item ${comment.isMine ? 'mine' : ''}">
+            <div class="comment-item ${c.isMine ? 'mine' : ''}">
               <div class="comment-av" style="background:var(--grad)">${initials}</div>
               <div class="comment-content">
                 <div class="comment-header">
-                  <span class="comment-name">${auName}</span>
-                  <span class="comment-time">${timeStr}</span>
-                  ${tag}
+                  <span class="comment-name">${c.authorName}</span>
+                  <span class="comment-time">${date}</span>
+                  ${c.isMine ? '<span class="comment-mine-tag">Vous</span>' : ''}
                 </div>
-                <div class="comment-text">${comment.text}</div>
+                <div class="comment-text">${c.text}</div>
                 <div class="comment-footer">
-                  <button class="comment-action" onclick="this.classList.toggle('liked')">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-                    Utile
-                  </button>
-                  ${delBtn}
+                  <button class="comment-action" onclick="this.classList.toggle('active')">Utile</button>
+                  ${c.isMine ? `<button class="comment-action" style="color:var(--lost-color)" onclick="window.deleteComment('${c.id}')">Supprimer</button>` : ''}
                 </div>
               </div>
             </div>
           </div>
         </div>
         `;
-        
-        wrapper.insertAdjacentHTML('beforeend', dom);
+        wrapper.insertAdjacentHTML("beforeend", html);
     });
 }
 
-// Global Exports
-window.filterThreads = function(btn, filter) {
-    document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
+/**
+ * ACTIONS GLOBALES
+ */
+window.filterThreads = (btn, filter) => {
+    document.querySelectorAll(".tf-btn").forEach(b => b.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+    currentFilter = filter;
     renderComments(filter);
 };
 
-window.deleteMyComment = async function(commentId) {
-    if (!confirm("Voulez-vous vraiment supprimer ce commentaire ?")) return;
-
-    const cTarget = allComments.find(c => c.id === commentId);
-    if (!cTarget || !cTarget.docRef) return;
+window.deleteComment = async (id) => {
+    if (!confirm("Supprimer ce commentaire ?")) return;
+    const target = allComments.find(c => c.id === id);
+    if (!target) return;
 
     try {
-        await deleteDoc(cTarget.docRef);
-        allComments = allComments.filter(c => c.id !== commentId);
-        
-        if (window.showToast) window.showToast("Commentaire supprimé");
-        
-        updateStats();
-        // Identify active filter
-        const activeBtn = document.querySelector('.tf-btn.active');
-        let filter = 'all';
-        if (activeBtn) {
-            if (activeBtn.textContent.includes("Mes")) filter = 'mine';
-            if (activeBtn.textContent.includes("Réponses")) filter = 'replies';
-        }
-        renderComments(filter);
-        
+        await deleteDoc(target.docRef);
+        allComments = allComments.filter(c => c.id !== id);
+        renderStats();
+        renderComments(currentFilter);
+        if (window.showToast) window.showToast("Commentaire supprimé.");
     } catch (e) {
-        console.error("Error deleting comment", e);
+        if (window.showToast) window.showToast("Erreur de suppression.");
     }
 };
