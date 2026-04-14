@@ -16,9 +16,8 @@ function setupNotificationListener(userUid) {
     const q = query(
         notifRef,
         where("userUid", "==", userUid),
-        where("read", "==", false),
         orderBy("createdAt", "desc"),
-        limit(1)
+        limit(5) // On prend les 5 dernières pour checker les non-lues
     );
 
     onSnapshot(q, (snapshot) => {
@@ -30,7 +29,9 @@ function setupNotificationListener(userUid) {
         snapshot.docChanges().forEach((change) => {
             if (change.type === "added") {
                 const data = change.doc.data();
-                if (window.showToast) {
+                const isUnread = data.read === false || data.status === "unread" || data.lu === false;
+                
+                if (isUnread && window.showToast) {
                     window.showToast(data.message || "Nouvelle notification de l'administration !");
                 }
             }

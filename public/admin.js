@@ -68,11 +68,33 @@ window.ignorerSignalements = async function(postId) {
 };
 
 /**
- * SYSTÈME D'ALERTES PRÉVENTIVES
+ * SYSTÈME D'ALERTES (PRÉVENTIVES OU GÉNÉRALES)
  */
-window.openWarnModal = function(userId, postId) {
+window.openWarnModal = function(userId, postId = null) {
     currentWarnUserId = userId;
     currentWarnPostId = postId;
+    
+    // UI elements de la modal
+    const title = document.getElementById("warn-modal-title");
+    const desc = document.getElementById("warn-modal-desc");
+    const motifWrapper = document.getElementById("warn-motif-wrapper");
+    const customMsg = document.getElementById("warn-custom-msg");
+
+    if (postId) {
+        if (title) title.textContent = "Avertir pour la publication";
+        if (desc) desc.textContent = "Choisissez un motif pour informer l'utilisateur de l'anomalie :";
+        if (motifWrapper) motifWrapper.style.display = "block";
+        if (customMsg) customMsg.style.display = "none";
+    } else {
+        if (title) title.textContent = "Envoyer une alerte générale";
+        if (desc) desc.textContent = "Saisissez le message d'avertissement que l'utilisateur recevra :";
+        if (motifWrapper) motifWrapper.style.display = "none";
+        if (customMsg) {
+            customMsg.style.display = "block";
+            customMsg.value = "";
+        }
+    }
+
     const overlay = document.getElementById("modal-warn-overlay");
     if (overlay) overlay.classList.add("show");
 };
@@ -85,28 +107,50 @@ window.closeWarnModal = function() {
 };
 
 window.confirmSendAlert = async function() {
-    if (!currentWarnUserId || !currentWarnPostId) return;
+    if (!currentWarnUserId) return;
     
-    const motif = document.getElementById("warn-motif").value;
+    let motif = "";
+    const motifSelect = document.getElementById("warn-motif");
+    const customMsgArea = document.getElementById("warn-custom-msg");
+
+    if (currentWarnPostId) {
+        motif = motifSelect ? motifSelect.value : "Avertissement administratif";
+    } else {
+        motif = customMsgArea ? customMsgArea.value.trim() : "";
+        if (!motif) {
+            if (window.showToast) window.showToast("Veuillez saisir un message !");
+            return;
+        }
+    }
     
     try {
-        // 1. Ajouter l'alerte dans la collection Alerts
+        // 1. Ajouter l'alerte dans la collection 'alerts' (pour la bannière temps réel)
         await addDoc(collection(db, "alerts"), {
             destinataireId: currentWarnUserId,
-            postId: currentWarnPostId,
+            postId: currentWarnPostId || "",
             motif: motif,
             date: serverTimestamp(),
             lu: false
         });
 
-        // 2. Marquer le post comme 'sous_surveillance'
-        const postRef = doc(db, "posts", currentWarnPostId);
-        await updateDoc(postRef, {
-            status: "sous_surveillance",
-            averti: true
+        // 2. Ajouter une notification dans 'notifications' (pour l'historique permanent)
+        await addDoc(collection(db, "notifications"), {
+            userUid: currentWarnUserId,
+            message: currentWarnPostId ? `Signalement : ${motif}` : `Note de l'administration : ${motif}`,
+            type: "alert",
+            status: "unread",
+            createdAt: serverTimestamp()
         });
 
-        if (window.showToast) window.showToast("Alerte préventive envoyée !");
+        // 3. Marquer le post comme 'sous_surveillance' si applicable
+        if (currentWarnPostId) {
+            await updateDoc(doc(db, "posts", currentWarnPostId), {
+                status: "sous_surveillance",
+                averti: true
+            });
+        }
+
+        if (window.showToast) window.showToast("Alerte envoyée !");
         closeWarnModal();
     } catch (error) {
         console.error("Erreur envoi alerte :", error);
@@ -300,6 +344,10 @@ function renderUsers(users) {
                 <td><span class="badge badge-normal">${data.role || 'user'}</span></td>
                 <td>
                     <div class="actions-cell">
+                        <button class="act-btn warn-btn" onclick="openWarnModal('${data.id}')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            Alerte
+                        </button>
                         <button class="act-btn danger" onclick="adminDeleteUser('${data.id}')">Supprimer</button>
                     </div>
                 </td>
