@@ -16,20 +16,24 @@ let currentAuthorData = null;
  */
 async function initPostDetail() {
     if (!postId) {
+        console.warn("No postId found in URL.");
         window.location.href = "home.html";
         return;
     }
 
     try {
+        console.log("Fetching post:", postId);
         const postRef = doc(db, "posts", postId);
         const postSnap = await getDoc(postRef);
 
         if (!postSnap.exists()) {
+            console.error("Post not found:", postId);
             window.location.href = "home.html";
             return;
         }
 
         currentPostData = { id: postSnap.id, ...postSnap.data() };
+        console.log("Post data loaded:", currentPostData);
         
         // 1. Injecter les données du post immédiatement
         injectPostData(currentPostData);
@@ -37,10 +41,14 @@ async function initPostDetail() {
         // 2. Charger les données de l'auteur (Profil complet)
         if (currentPostData.authorUid) {
             loadAuthorProfile(currentPostData.authorUid);
+        } else {
+            console.warn("Post has no authorUid.");
         }
 
         // 3. Charger les publications similaires
-        loadSimilarPosts(currentPostData.category, postSnap.id);
+        if (currentPostData.category) {
+            loadSimilarPosts(currentPostData.category, postSnap.id);
+        }
 
         // 4. Écouter les commentaires en temps réel
         listenToComments();
@@ -54,102 +62,143 @@ async function initPostDetail() {
  * INJECTION DES DONNÉES DU POST DANS LE DOM
  */
 function injectPostData(data) {
+    if (!data) return;
+
     const setText = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.textContent = val || "N/A";
     };
 
-    setText("detail-title", data.title);
-    setText("breadcrumb-title", data.title);
-    setText("detail-category", data.category);
-    setText("breadcrumb-category", data.category);
-    setText("detail-category-grid", data.category);
-    setText("detail-type", data.postType === "lost" || data.postType === "perdu" ? "Objet Perdu" : "Objet Trouvé");
-    setText("detail-city", data.city);
-    setText("detail-desc", data.description || data.content);
+    try {
+        setText("detail-title", data.title);
+        setText("breadcrumb-title", data.title);
+        setText("detail-category", data.category);
+        setText("breadcrumb-category", data.category);
+        setText("detail-category-grid", data.category);
+        setText("detail-type", (data.postType === "lost" || data.postType === "perdu") ? "Objet Perdu" : "Objet Trouvé");
+        setText("detail-city", data.city);
+        setText("detail-desc", data.description || data.content);
 
-    // Dates
-    if (data.createdAt) {
-        const date = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
-        const formattedDate = date.toLocaleDateString("fr-FR", { day: '2-digit', month: 'short', year: 'numeric' });
-        setText("detail-date", formattedDate);
-        setText("detail-publish-time", formattedDate);
-    }
+        // Dates (Gestion sécurisée)
+        try {
+            if (data.createdAt) {
+                let date;
+                if (data.createdAt.toDate) {
+                    date = data.createdAt.toDate();
+                } else if (data.createdAt.seconds) {
+                    date = new Date(data.createdAt.seconds * 1000);
+                } else {
+                    date = new Date(data.createdAt);
+                }
+                
+                if (!isNaN(date.getTime())) {
+                    const formattedDate = date.toLocaleDateString("fr-FR", { day: '2-digit', month: 'short', year: 'numeric' });
+                    setText("detail-date", formattedDate);
+                    setText("detail-publish-time", formattedDate);
+                } else {
+                    setText("detail-date", "Date inconnue");
+                }
+            } else {
+                setText("detail-date", "Récemment");
+            }
+        } catch (e) {
+            console.warn("Error parsing date:", e);
+            setText("detail-date", "N/A");
+        }
 
-    // Badge
-    const badge = document.getElementById("detail-badge");
-    if (badge) {
-        const isLost = data.postType === "lost" || data.postType === "perdu";
-        badge.className = `post-badge ${isLost ? 'badge-lost' : 'badge-found'}`;
-        badge.textContent = isLost ? "Perdu" : "Trouvé";
-    }
+        // Badge
+        const badge = document.getElementById("detail-badge");
+        if (badge) {
+            const isLost = data.postType === "lost" || data.postType === "perdu";
+            badge.className = `post-badge ${isLost ? 'badge-lost' : 'badge-found'}`;
+            badge.textContent = isLost ? "Perdu" : "Trouvé";
+        }
 
-    // Image
-    const imgEl = document.getElementById("detail-image");
-    if (imgEl) {
-        if (data.imageUrl) {
-            imgEl.style.backgroundImage = `url('${data.imageUrl}')`;
-            imgEl.style.backgroundColor = "transparent";
-        } else {
-            imgEl.style.backgroundColor = "var(--bg)";
-            imgEl.style.backgroundImage = "none";
-            if (!imgEl.querySelector('.placeholder-icon')) {
-                const icon = document.createElement('div');
-                icon.className = 'placeholder-icon';
-                icon.innerHTML = "📷";
-                icon.style = "position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:40px; opacity:0.3; pointer-events:none;";
-                imgEl.appendChild(icon);
+        // Image
+        const imgEl = document.getElementById("detail-image");
+        if (imgEl) {
+            if (data.imageUrl) {
+                imgEl.style.backgroundImage = `url('${data.imageUrl}')`;
+                imgEl.style.backgroundColor = "transparent";
+            } else {
+                imgEl.style.backgroundColor = "var(--bg)";
+                imgEl.style.backgroundImage = "none";
+                if (!imgEl.querySelector('.placeholder-icon')) {
+                    const icon = document.createElement('div');
+                    icon.className = 'placeholder-icon';
+                    icon.innerHTML = "📷";
+                    icon.style = "position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:40px; opacity:0.3; pointer-events:none;";
+                    imgEl.appendChild(icon);
+                }
             }
         }
+    } catch (err) {
+        console.error("Error in injectPostData baseline:", err);
     }
 
     // AFFECTATION DU NOM DE L'AUTEUR (Fallback immédiat)
-    const authorNameEl = document.getElementById("detail-author-name");
-    const authorAvEl = document.getElementById("detail-author-av");
-    
-    // On essaie d'utiliser les champs stockés directements dans le post
-    const prenom = data.authorPrenom || "";
-    const nom = data.authorNom || "";
-    
-    if (authorNameEl) {
-        if (prenom || nom) {
-            authorNameEl.textContent = `${prenom} ${nom}`.trim();
-        } else if (data.authorName) {
-            authorNameEl.textContent = data.authorName;
-        } else {
-            authorNameEl.textContent = "Utilisateur Vindora";
+    try {
+        const authorNameEl = document.getElementById("detail-author-name");
+        const authorAvEl = document.getElementById("detail-author-av");
+        
+        const prenom = data.authorPrenom || "";
+        const nom = data.authorNom || "";
+        
+        if (authorNameEl) {
+            if (prenom || nom) {
+                authorNameEl.textContent = `${prenom} ${nom}`.trim();
+            } else if (data.authorName) {
+                authorNameEl.textContent = data.authorName;
+            } else {
+                authorNameEl.textContent = "Utilisateur Vindora"; // Fallback final
+            }
         }
-    }
-    
-    if (authorAvEl) {
-        if (prenom && nom) {
-            authorAvEl.textContent = (prenom[0] + nom[0]).toUpperCase();
-        } else if (prenom) {
-            authorAvEl.textContent = prenom[0].toUpperCase();
+        
+        if (authorAvEl) {
+            if (prenom && nom) {
+                authorAvEl.textContent = (prenom[0] + nom[0]).toUpperCase();
+            } else if (prenom && prenom.length > 0) {
+                authorAvEl.textContent = prenom[0].toUpperCase();
+            } else {
+                authorAvEl.textContent = "UV";
+            }
         }
+    } catch (err) {
+        console.error("Error in Author Fallback logic:", err);
     }
 
     refreshLikeUI();
 }
 
 /**
- * CHARGEMENT DU PROFIL DE L'AUTEUR
+ * CHARGEMENT DU PROFIL DE L'AUTEUR (Async)
  */
 async function loadAuthorProfile(uid) {
+    if (!uid) return;
     try {
         const userRef = doc(db, "users", uid);
         const userSnap = await getDoc(userRef);
+        
+        const nameEl = document.getElementById("detail-author-name");
+        const avEl = document.getElementById("detail-author-av");
+
         if (userSnap.exists()) {
             currentAuthorData = userSnap.data();
-            const fullName = `${currentAuthorData.prenom} ${currentAuthorData.nom}`;
+            const fullName = `${currentAuthorData.prenom || ''} ${currentAuthorData.nom || ''}`.trim() || "Utilisateur";
             
-            const nameEl = document.getElementById("detail-author-name");
             if (nameEl) nameEl.textContent = fullName;
             
-            const avEl = document.getElementById("detail-author-av");
             if (avEl && currentAuthorData.prenom && currentAuthorData.nom) {
-                const initials = (currentAuthorData.prenom.charAt(0) + currentAuthorData.nom.charAt(0)).toUpperCase();
+                const initials = (currentAuthorData.prenom[0] + currentAuthorData.nom[0]).toUpperCase();
                 avEl.textContent = initials;
+            } else if (avEl && currentAuthorData.prenom) {
+                avEl.textContent = currentAuthorData.prenom[0].toUpperCase();
+            }
+        } else {
+            console.warn("Author user document does not exist for UID:", uid);
+            // Si le doc user n'existe pas, on garde le fallback ou on met "Ancien utilisateur"
+            if (nameEl && nameEl.textContent === "Chargement...") {
+                nameEl.textContent = "Ancien Utilisateur";
             }
         }
     } catch (error) {
@@ -162,7 +211,7 @@ async function loadAuthorProfile(uid) {
  */
 async function loadSimilarPosts(category, currentId) {
     const listEl = document.getElementById("similar-posts-list");
-    if (!listEl) return;
+    if (!listEl || !category) return;
 
     try {
         const postsRef = collection(db, "posts");
@@ -189,8 +238,8 @@ async function loadSimilarPosts(category, currentId) {
                         ${data.imageUrl ? `<img src="${data.imageUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">` : `<span style="font-size:20px; opacity:0.3;">📦</span>`}
                     </div>
                     <div class="related-info">
-                        <div class="related-title">${data.title}</div>
-                        <div class="related-meta">${data.city} · ${data.category}</div>
+                        <div class="related-title">${data.title || "Sans titre"}</div>
+                        <div class="related-meta">${data.city || ""} · ${data.category || ""}</div>
                     </div>
                 `;
                 listEl.appendChild(item);
@@ -211,14 +260,9 @@ async function loadSimilarPosts(category, currentId) {
  * COMMENTAIRES
  */
 window.sendComment = async () => {
-    // Sécurité : Vérifier que les données du post sont chargées
-    if (!currentPostData || !postId) {
-        if (window.showToast) window.showToast("Données du post non chargées. Réessayez.");
-        return;
-    }
-
+    if (!currentPostData || !postId) return;
     if (!window.currentUser) {
-        if (window.showToast) window.showToast("Vous devez être connecté pour commenter.");
+        if (window.showToast) window.showToast("Vous devez être connecté.");
         return;
     }
 
@@ -230,7 +274,7 @@ window.sendComment = async () => {
         const commRef = collection(db, "comments");
         await addDoc(commRef, {
             postId: postId,
-            postTitle: currentPostData.title || "Titre inconnu",
+            postTitle: currentPostData.title || "Post",
             postOwnerUid: currentPostData.authorUid || "",
             text: text,
             authorUid: window.currentUser.uid,
@@ -239,10 +283,9 @@ window.sendComment = async () => {
         });
 
         input.value = "";
-        if (window.showToast) window.showToast("Commentaire ajouté !");
+        if (window.showToast) window.showToast("Commentaire envoyé !");
     } catch (error) {
         console.error("Error sendComment:", error);
-        if (window.showToast) window.showToast("Erreur lors de l'envoi : " + error.code, { type: "error" });
     }
 };
 
@@ -262,16 +305,14 @@ function listenToComments() {
             const data = docSnap.data();
             const date = data.createdAt ? data.createdAt.toDate().toLocaleString("fr-FR", { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : "À l'instant";
             
-            let authorDisplay = data.authorName || "Utilisateur inconnu";
-            if (authorDisplay.includes("undefined")) authorDisplay = "Utilisateur inconnu";
-            
-            const initials = authorDisplay !== "Utilisateur inconnu" ? authorDisplay.split(" ").map(n => n[0]).join("").toUpperCase() : "??";
+            const authorDisplay = data.authorName || "Utilisateur";
+            const initials = authorDisplay.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2);
             const isOwner = data.authorUid === currentPostData.authorUid;
 
             const div = document.createElement("div");
             div.className = "comment-item";
             div.innerHTML = `
-                <div class="comment-av" style="background: var(--grad)">${initials}</div>
+                <div class="comment-av" style="background: var(--grad)">${initials || "?"}</div>
                 <div class="comment-content">
                     <div class="comment-header">
                         <span class="comment-name">${authorDisplay}</span>
@@ -291,21 +332,19 @@ function listenToComments() {
  */
 window.contactAuthor = () => {
     if (!currentAuthorData) {
-        if (window.showToast) window.showToast("Informations de contact indisponibles.");
+        if (window.showToast) window.showToast("Détails de contact non chargés.");
         return;
     }
-
     const phone = currentAuthorData.phone;
     const email = currentAuthorData.email;
-
     if (phone) {
         const cleanPhone = phone.replace(/\s+/g, '').replace('+', '');
         const waLink = `https://wa.me/${cleanPhone.length >= 8 && !cleanPhone.startsWith('216') ? '216' + cleanPhone : cleanPhone}`;
         window.open(waLink, '_blank');
     } else if (email) {
-        window.location.href = `mailto:${email}?subject=Vindora : Concernant votre annonce ${currentPostData.title}`;
+        window.location.href = `mailto:${email}?subject=Vindora : ${currentPostData.title}`;
     } else {
-        if (window.showToast) window.showToast("Aucun moyen de contact trouvé.");
+        if (window.showToast) window.showToast("Aucun média de contact.");
     }
 };
 
@@ -313,14 +352,9 @@ window.contactAuthor = () => {
  * FAVORIS (LIKES)
  */
 window.toggleFav = async () => {
-    if (!window.currentUser) {
-        if (window.showToast) window.showToast("Connectez-vous pour liker.");
-        return;
-    }
-
+    if (!window.currentUser || !postId) return;
     const postRef = doc(db, "posts", postId);
     const isLiked = currentPostData.likes && currentPostData.likes.includes(window.currentUser.uid);
-
     try {
         if (isLiked) {
             await updateDoc(postRef, { likes: arrayRemove(window.currentUser.uid) });
@@ -331,70 +365,52 @@ window.toggleFav = async () => {
             currentPostData.likes.push(window.currentUser.uid);
         }
         refreshLikeUI();
-    } catch (e) {
-        console.error("Error toggleFav:", e);
-    }
+    } catch (e) { console.error(e); }
 };
 
 window.reportPost = async () => {
-    if (!window.currentUser) {
-        if (window.showToast) window.showToast("Connectez-vous pour signaler.");
-        return;
-    }
-
+    if (!window.currentUser || !postId) return;
     if (currentPostData.reportedBy && currentPostData.reportedBy.includes(window.currentUser.uid)) {
-        if (window.showToast) window.showToast("Vous avez déjà signalé cette publication.");
-        return;
+        if (window.showToast) window.showToast("Déjà signalé."); return;
     }
-
-    if (!confirm("Souhaitez-vous signaler cette publication pour contenu inapproprié ?")) return;
-
+    if (!confirm("Signaler ce post ?")) return;
     try {
-        const postRef = doc(db, "posts", postId);
-        await updateDoc(postRef, {
+        await updateDoc(doc(db, "posts", postId), {
             reportsCount: increment(1),
             reportedBy: arrayUnion(window.currentUser.uid)
         });
-        if (window.showToast) window.showToast("Signalement envoyé à la modération.");
-        
-        // Update local data to prevent double report immediately
+        if (window.showToast) window.showToast("Post signalé.");
         if (!currentPostData.reportedBy) currentPostData.reportedBy = [];
         currentPostData.reportedBy.push(window.currentUser.uid);
-        
-    } catch (error) {
-        console.error("Error reporting post:", error);
-    }
+    } catch (e) { console.error(e); }
 };
 
 function refreshLikeUI() {
     const btn = document.getElementById("fav-btn");
     const icon = document.getElementById("fav-icon");
     const countEl = document.getElementById("fav-count");
-    if (!btn || !icon) return;
-
+    if (!btn || !icon || !currentPostData) return;
     const likes = currentPostData.likes || [];
     if (countEl) countEl.textContent = `(${likes.length})`;
-
     if (window.currentUser && likes.includes(window.currentUser.uid)) {
         btn.classList.add("liked");
-        icon.style.fill = "#E03B3B";
-        icon.style.stroke = "#E03B3B";
+        icon.style.fill = "#E03B3B"; icon.style.stroke = "#E03B3B";
     } else {
         btn.classList.remove("liked");
-        icon.style.fill = "none";
-        icon.style.stroke = "currentColor";
+        icon.style.fill = "none"; icon.style.stroke = "currentColor";
     }
 }
 
-// Initialisation
+// Global Auth State
 onAuthStateChanged(auth, (user) => {
     setTimeout(() => {
         refreshLikeUI();
-        if (window.currentUser) {
+        if (window.currentUser && window.currentUser.prenom && window.currentUser.nom) {
             const commAv = document.querySelector(".add-comment .comment-avatar");
             if (commAv) commAv.textContent = (window.currentUser.prenom[0] + window.currentUser.nom[0]).toUpperCase();
         }
     }, 500);
 });
 
+// Run
 initPostDetail();
