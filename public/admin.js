@@ -394,6 +394,21 @@ function renderUsers(users) {
     });
 }
 
+/**
+ * SUPPRESSION D'UTILISATEUR (ADMIN)
+ */
+window.adminDeleteUser = async function(userId) {
+    if (!confirm("ATTENTION : Voulez-vous vraiment supprimer le profil de cet utilisateur ? Cette action est irréversible dans la base de données.")) return;
+    try {
+        await deleteDoc(doc(db, "users", userId));
+        if (window.showToast) window.showToast("Profil utilisateur supprimé !");
+        // Le listener onSnapshot s'occupera de rafraîchir l'UI
+    } catch (error) {
+        console.error("Erreur suppression utilisateur :", error);
+        alert("Erreur lors de la suppression de l'utilisateur.");
+    }
+};
+
 onAuthStateChanged(auth, (user) => {
     if (user) listenToAdminData();
 });

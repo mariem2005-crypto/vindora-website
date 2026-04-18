@@ -1,6 +1,14 @@
 import { auth, db } from "./firebase-config.js";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    signOut, 
+    updatePassword, 
+    reauthenticateWithCredential, 
+    EmailAuthProvider,
+    deleteUser 
+} from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import { doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 // Fonction d'alerte professionnelle utilisant votre toast
 function notify(msg) {
@@ -11,42 +19,46 @@ function notify(msg) {
     }
 }
 
-export async function register(email, password, nom, prenom, phone, city, role = 'user') {
-    try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        
-        await setDoc(doc(db, "users", user.uid), {
-            nom: nom,
-            prenom: prenom,
-            email: email,
-            phone: phone,
-            city: city,
-            role: role,
-            createdAt: serverTimestamp()
-        });
-        
-        notify("Compte créé avec succès !");
-        
-        setTimeout(() => {
-            if (role === 'admin') {
-                window.location.href = "admin.html";
-            } else {
-                window.location.href = "home.html";
-            }
-        }, 1500);
-    } catch (error) {
-        console.error("Register Error:", error);
-        if(error.code === 'auth/email-already-in-use') {
-             notify("Cet email est déjà utilisé.");
-        } else if(error.code === 'auth/weak-password') {
-             notify("Le mot de passe doit faire au moins 6 caractères.");
-        } else {
-             notify("Erreur lors de l'inscription.");
-        }
+/**
+ * Redirection intelligente selon le rôle
+ */
+function redirectByRole(role) {
+    if (role === 'admin') {
+        window.location.href = "admin.html";
+    } else {
+        window.location.href = "home.html";
     }
 }
 
+/**
+ * INSCRIPTION (SIGNUP)
+ */
+export async function signUp(email, password, userData) {
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        // On enregistre les infos dans Firestore
+        await setDoc(doc(db, "users", user.uid), {
+            uid: user.uid,
+            email: email,
+            prenom: userData.prenom,
+            nom: userData.nom,
+            role: userData.role || 'user', // Par défaut 'user'
+            createdAt: serverTimestamp()
+        });
+
+        notify("Compte créé avec succès !");
+        redirectByRole(userData.role);
+    } catch (error) {
+        console.error("Erreur Inscription:", error);
+        notify("Erreur lors de la création du compte.");
+    }
+}
+
+/**
+ * CONNEXION (LOGIN) AVEC VÉRIFICATION STRICTE DU RÔLE
+ */
 export async function login(email, password, selectedRole = 'user') {
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -61,7 +73,6 @@ export async function login(email, password, selectedRole = 'user') {
             
             console.log("Login check:", { selectedRole, actualRole });
 
-            // Task 2: Post-Login Verification Logic (STRICT ENFORCEMENT)
             if (selectedRole === 'user' && actualRole === 'admin') {
                 await signOut(auth);
                 notify("Ce compte est un compte Administrateur. Veuillez utiliser le bouton Administrateur pour vous connecter.");
@@ -74,195 +85,142 @@ export async function login(email, password, selectedRole = 'user') {
                 return;
             }
 
-            // SUCCESS: Roles match
             if (actualRole === 'admin') {
                 notify("Bienvenue " + userData.prenom + " ! Redirection en cours...");
-                setTimeout(() => {
-                    window.location.href = "admin.html";
-                }, 1000);
+                setTimeout(() => { window.location.href = "admin.html"; }, 1000);
             } else {
                 notify("Bienvenue " + userData.prenom + " ! Redirection...");
-                setTimeout(() => {
-                    window.location.href = "home.html";
-                }, 1000);
+                setTimeout(() => { window.location.href = "home.html"; }, 1000);
             }
         } else {
             notify("Utilisateur introuvable dans la base !");
-            await signOut(auth);
         }
     } catch (error) {
-        console.error("Login Error:", error);
-        if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-            notify("Email ou mot de passe incorrect.");
+        console.error("Erreur Connexion:", error);
+        notify("Email ou mot de passe incorrect.");
+    }
+}
+
+/**
+ * LOGOUT
+ */
+export async function logout() {
+    try {
+        await signOut(auth);
+        window.location.href = "index.html";
+    } catch (error) {
+        console.error("Erreur Logout:", error);
+    }
+}
+
+/**
+ * MISE À JOUR MOT DE PASSE
+ */
+export async function changePassword(oldPassword, newPassword) {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+        const credential = EmailAuthProvider.credential(user.email, oldPassword);
+        await reauthenticateWithCredential(user, credential);
+        await updatePassword(user, newPassword);
+        notify("Mot de passe mis à jour !");
+        return true;
+    } catch (error) {
+        console.error("Erreur Change Password:", error);
+        notify("Erreur : " + error.message);
+        return false;
+    }
+}
+
+/**
+ * TASK: SUPPRESSION DE COMPTE (SOI-MÊME)
+ */
+export async function deleteMyAccount() {
+    const user = auth.currentUser;
+    if (!user) {
+        notify("Veuillez vous connecter pour supprimer votre compte.");
+        return;
+    }
+
+    const confirmFirst = confirm("Êtes-vous ABSOLUMENT sûr ? Cette action supprimera votre profil et vos accès définitivement.");
+    if (!confirmFirst) return;
+
+    const confirmSecond = confirm("Dernière confirmation : Vos données seront perdues. Continuer ?");
+    if (!confirmSecond) return;
+
+    try {
+        // 1. Supprimer le profil Firestore
+        await deleteDoc(doc(db, "users", user.uid));
+
+        // 2. Supprimer l'utilisateur Firebase Auth
+        await deleteUser(user);
+
+        notify("Votre compte a été supprimé avec succès. Au revoir !");
+        setTimeout(() => {
+            window.location.href = "index.html";
+        }, 2000);
+
+    } catch (error) {
+        console.error("Erreur suppression compte :", error);
+        
+        if (error.code === 'auth/requires-recent-login') {
+            alert("Sécurité : Veuillez vous reconnecter (Logout puis Login) avant de supprimer votre compte.");
+            await signOut(auth);
+            window.location.href = "index.html";
         } else {
-            notify("Erreur lors de la connexion.");
+            notify("Une erreur est survenue lors de la suppression.");
         }
     }
 }
 
-// Liaisons pour index.html
-window.realRegister = function() {
-    const email = document.getElementById("reg-email").value;
-    const password = document.getElementById("reg-password").value;
-    const nom = document.getElementById("reg-nom").value;
-    const prenom = document.getElementById("reg-prenom").value;
-    const phone = document.getElementById("reg-phone").value;
-    const citySelect = document.getElementById("reg-city");
-    const city = citySelect.options[citySelect.selectedIndex].value;
-    const pwdConfirmWrap = document.getElementById("reg-pwd-confirm");
-    
-    const role = window.currentRole || 'user';
+// EXPORTATIONS GLOBALES
+window.login = (e, p, role) => login(e, p, role);
+window.signUp = (e, p, d) => signUp(e, p, d);
+window.logout = () => logout();
+window.realDeleteAccount = deleteMyAccount;
 
-    if (!email || !password || !nom || !prenom || !phone || !city) {
+/**
+ * PROFILE UPDATES
+ */
+window.realUpdatePassword = async function() {
+    const oldP = document.getElementById("old-password").value;
+    const newP = document.getElementById("new-password").value;
+    const confP = document.getElementById("confirm-password").value;
+
+    if (!oldP || !newP || !confP) {
         notify("Veuillez remplir tous les champs !");
         return;
     }
-    
-    if (pwdConfirmWrap && password !== pwdConfirmWrap.value) {
-        notify("Les mots de passe ne correspondent pas !");
+    if (newP !== confP) {
+        notify("Les mots de passe ne correspondent pas.");
         return;
     }
 
-    notify("Inscription en cours...");
-    register(email, password, nom, prenom, phone, city, role);
-};
-
-window.realLogin = function() {
-    const email = document.getElementById("login-email").value;
-    const password = document.getElementById("login-password").value;
-    // Capturer le rôle sélectionné AU MOMENT du clic
-    const selectedRole = window.currentLoginRole || 'user';
-
-    if (!email || !password) {
-        notify("Veuillez remplir votre email et mot de passe.");
-        return;
-    }
-
-    notify("Connexion en cours...");
-    login(email, password, selectedRole);
-};
-
-export async function updateUserProfile(uid, newData) {
-    if (!uid) throw new Error("User not authenticated");
-    const docRef = doc(db, "users", uid);
-    await updateDoc(docRef, newData);
-}
-
-window.realUpdateProfile = async function() {
-    if (!window.currentUser) {
-        notify("Veuillez vous connecter pour modifier votre profil.");
-        return;
-    }
-
-    const nom = document.getElementById("edit-nom").value;
-    const prenom = document.getElementById("edit-prenom").value;
-    const phone = document.getElementById("edit-phone").value;
-    const citySelect = document.getElementById("edit-city");
-    const city = citySelect.options[citySelect.selectedIndex].value;
-
-    if (!nom || !prenom) {
-        notify("Le nom et le prénom sont obligatoires.");
-        return;
-    }
-
-    try {
-        const btn = document.getElementById("btn-update-profile");
-        const originHTML = btn.innerHTML;
-        btn.innerHTML = "Enregistrement...";
-        btn.disabled = true;
-
-        await updateUserProfile(window.currentUser.uid, {
-            nom: nom,
-            prenom: prenom,
-            phone: phone,
-            city: city
-        });
-
-        notify("Profil mis à jour avec succès !");
-
-        // Update local session
-        window.currentUser.nom = nom;
-        window.currentUser.prenom = prenom;
-        window.currentUser.phone = phone;
-        window.currentUser.city = city;
-
-        // Force UI refresh (if updateUIProfile exists globally or we just reload)
-        setTimeout(() => {
-            window.location.reload();
-        }, 1500);
-        
-    } catch (e) {
-        console.error("Update error: ", e);
-        notify("Erreur lors de la mise à jour.");
-        const btn = document.getElementById("btn-update-profile");
-        btn.disabled = false;
-        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg> Enregistrer`;
-    }
-};
-
-export async function updatePasswordBothPlaces(oldPass, newPass) {
-    if (!auth.currentUser) throw new Error("No authenticated user.");
-    
-    // Step A.1: Re-authenticate
-    const credential = EmailAuthProvider.credential(auth.currentUser.email, oldPass);
-    await reauthenticateWithCredential(auth.currentUser, credential);
-    
-    // Step A.2: Update password in Firebase Auth
-    await updatePassword(auth.currentUser, newPass);
-
-    // Step B: Update password in Firestore users collection
-    const docRef = doc(db, "users", auth.currentUser.uid);
-    await updateDoc(docRef, { password: newPass });
-}
-
-window.realUpdatePassword = async function() {
-    const oldPass = document.getElementById("old-password").value;
-    const newPass = document.getElementById("new-password").value;
-    const confirmPass = document.getElementById("confirm-password").value;
-
-    if (!oldPass || !newPass || !confirmPass) {
-        notify("Veuillez remplir tous les champs de mot de passe.");
-        return;
-    }
-
-    if (newPass !== confirmPass) {
-        notify("Erreur: Les mots de passe ne correspondent pas.");
-        return;
-    }
-
-    if (newPass.length < 6) {
-        notify("Le mot de passe doit faire au moins 6 caractères.");
-        return;
-    }
-
-    try {
-        const btn = document.getElementById("btn-submit-password");
-        const originHTML = btn.innerHTML;
-        btn.innerHTML = "Modification...";
-        btn.disabled = true;
-
-        await updatePasswordBothPlaces(oldPass, newPass);
-
-        notify("Succès: Mot de passe mis à jour partout !");
-        
-        // Reset fields
+    const success = await changePassword(oldP, newP);
+    if (success) {
         document.getElementById("old-password").value = "";
         document.getElementById("new-password").value = "";
         document.getElementById("confirm-password").value = "";
+    }
+};
 
-        btn.disabled = false;
-        btn.innerHTML = originHTML;
+window.realUpdateProfile = async function() {
+    const user = auth.currentUser;
+    if (!user) return;
 
-    } catch (e) {
-        console.error("Password update error:", e);
-        if (e.code === 'auth/invalid-credential') {
-            notify("Mot de passe actuel incorrect.");
-        } else {
-            notify("Erreur lors du changement de mot de passe.");
-        }
-        const btn = document.getElementById("btn-submit-password");
-        btn.disabled = false;
-        btn.innerHTML = "Changer mon mot de passe"; 
-        // Fallback UI reset
+    const data = {
+        prenom: document.getElementById("edit-prenom").value,
+        nom: document.getElementById("edit-nom").value,
+        phone: document.getElementById("edit-phone").value,
+        city: document.getElementById("edit-city").value,
+        updatedAt: serverTimestamp()
+    };
+
+    try {
+        await updateDoc(doc(db, "users", user.uid), data);
+        notify("Profil mis à jour !");
+    } catch (error) {
+        console.error("Erreur Update Profile:", error);
+        notify("Échec de la mise à jour.");
     }
 };
