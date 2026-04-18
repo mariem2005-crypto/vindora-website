@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-import { doc, getDoc, collection, query, where, onSnapshot, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { doc, getDoc, collection, query, where, onSnapshot, orderBy, limit, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 // Variable globale pour accéder à l'utilisateur connecté depuis n'importe quel fichier
 window.currentUser = null;
@@ -30,7 +30,7 @@ function setupNotificationListener(userUid) {
             if (change.type === "added") {
                 const data = change.doc.data();
                 const isUnread = data.read === false || data.status === "unread" || data.lu === false;
-                
+
                 if (isUnread && window.showToast) {
                     window.showToast(data.message || "Nouvelle notification de l'administration !");
                 }
@@ -68,7 +68,7 @@ function injectAlertBanner(motif, alertId) {
     const container = document.getElementById("user-alerts-container");
     const banner = document.createElement("div");
     banner.id = "vindora-alert-banner";
-    
+
     // Style différent selon si c'est une bannière ou un bloc intégré
     const isInline = !!container;
     const background = "#FFF7ED";
@@ -118,7 +118,7 @@ onAuthStateChanged(auth, async (user) => {
         try {
             const docRef = doc(db, "users", user.uid);
             const docSnap = await getDoc(docRef);
-            
+
             if (docSnap.exists()) {
                 const userData = docSnap.data();
                 window.currentUser = {
@@ -160,14 +160,14 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function updateUIProfile(userData) {
-    const fullName = (userData.prenom || userData.nom) 
-        ? `${userData.prenom || ''} ${userData.nom || ''}`.trim() 
+    const fullName = (userData.prenom || userData.nom)
+        ? `${userData.prenom || ''} ${userData.nom || ''}`.trim()
         : "Utilisateur Vindora";
-    
+
     const initials = (userData.prenom && userData.nom)
         ? (userData.prenom[0] + userData.nom[0]).toUpperCase()
         : "UV";
-    
+
     // Mettre à jour les éléments contenant les initiales
     const initialsElements = document.querySelectorAll(".avatar, .admin-av, .profile-avatar, #user-initials");
     initialsElements.forEach(el => {
@@ -186,30 +186,49 @@ function updateUIProfile(userData) {
         editNom.value = userData.nom || "";
         document.getElementById("edit-prenom").value = userData.prenom || "";
         document.getElementById("edit-email").value = userData.email || "";
-        
+
         const telEl = document.getElementById("edit-phone");
         if (telEl) telEl.value = userData.phone || "";
-        
+
         const cityEl = document.getElementById("edit-city");
         if (cityEl && userData.city) cityEl.value = userData.city;
-        
+
         // Populate mapped password if it exists in db
         const oldPassEl = document.getElementById("old-password");
         if (oldPassEl && userData.password) oldPassEl.value = userData.password;
-        
+
         const userProfileName = document.getElementById("user-profile-name");
         if (userProfileName) {
             userProfileName.textContent = `${userData.prenom} ${userData.nom}`;
         }
-        
+
         const badgeRole = document.querySelector(".badge-role");
         if (badgeRole && userData.role) {
             badgeRole.textContent = userData.role === 'admin' ? 'Administrateur' : 'Utilisateur';
         }
-        
+
         const profileEmail = document.querySelector(".profile-email");
         if (profileEmail && userData.email) {
             profileEmail.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="opacity:0.5"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg> ${userData.email}`;
         }
     }
+
 }
+// Recherche du bouton directement dans l'élément banner
+const btn = banner.querySelector("#close-alert-btn");
+if (btn) {
+    btn.onclick = async () => {
+        btn.disabled = true;
+        btn.textContent = "...";
+        try {
+            // Mise à jour de Firestore
+            await updateDoc(doc(db, "alerts", alertId), { lu: true });
+            // Suppression visuelle immédiate
+            banner.remove();
+        } catch (e) {
+            console.error("Erreur lecture alerte :", e);
+            banner.remove(); // On l'enlève quand même en cas d'erreur locale
+        }
+    };
+}
+
