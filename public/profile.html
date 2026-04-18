@@ -287,7 +287,7 @@
   </div>
   <div class="stat-card" style="animation-delay:0.15s">
     <div class="stat-icon"><svg viewBox="0 0 36 36" fill="none" style="width:32px;height:32px"><rect width="36" height="36" rx="10" fill="#FFF7ED"/><path d="M10 11h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-5 3v-3h-3a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z" stroke="#F59E0B" stroke-width="1.8" fill="none"/><line x1="14" y1="16" x2="22" y2="16" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round"/><line x1="14" y1="19" x2="20" y2="19" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round"/></svg></div>
-    <div class="stat-num">11</div>
+    <div class="stat-num" id="profile-count-comments">11</div>
     <div class="stat-label">Commentaires</div>
   </div>
   <div class="stat-card" style="animation-delay:0.20s">
@@ -479,7 +479,7 @@
 
 <script type="module">
   import { auth, db } from "./firebase-config.js";
-  import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  import { collection, query, where, getDocs, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
   import { populateCitySelect } from "./locationService.js";
 
@@ -492,13 +492,16 @@
     
     try {
       const postsRef = collection(db, "posts");
-      const q = query(postsRef, where("authorUid", "==", user.uid));
-      const querySnapshot = await getDocs(q);
+      const commentsRef = collection(db, "comments");
+
+      // 1. Publications stats
+      const qPosts = query(postsRef, where("authorUid", "==", user.uid));
+      const postsSnap = await getDocs(qPosts);
 
       let totalPublications = 0;
       let totalResolues = 0;
 
-      querySnapshot.forEach(function(doc) {
+      postsSnap.forEach(function(doc) {
         totalPublications++;
         const status = (doc.data().status || "active").toLowerCase();
         if (status.includes("resolu") || status === "resolved") {
@@ -506,14 +509,25 @@
         }
       });
 
+      // 2. Comment stats (Optimized with getCountFromServer)
+      const qComments = query(commentsRef, where("authorUid", "==", user.uid));
+      const commentsSnap = await getCountFromServer(qComments);
+      const totalComments = commentsSnap.data().count;
+
+      // 3. Update UI
       const elTotal = document.getElementById("profile-count-total");
       const elResolues = document.getElementById("profile-count-resolved");
+      const elComments = document.getElementById("profile-count-comments");
 
       if (elTotal) elTotal.innerText = totalPublications;
       if (elResolues) elResolues.innerText = totalResolues;
+      if (elComments) elComments.innerText = totalComments;
 
     } catch (error) {
       console.error("Erreur de synchronisation des stats du profil :", error);
+      if (error.code === 'failed-precondition') {
+          console.warn("⚠️ Index requis pour les stats du profil. Cliquez sur le lien dans la console.");
+      }
     }
   }
 
