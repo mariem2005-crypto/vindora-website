@@ -17,7 +17,7 @@ function setupNotificationListener(userUid) {
         notifRef,
         where("userUid", "==", userUid),
         orderBy("createdAt", "desc"),
-        limit(5) // On prend les 5 dernières pour checker les non-lues
+        limit(5)
     );
 
     onSnapshot(q, (snapshot) => {
@@ -41,7 +41,6 @@ function setupNotificationListener(userUid) {
 
 /**
  * SYSTÈME D'ALERTES PRÉVENTIVES
- * Écoute les alertes administratives pour l'utilisateur.
  */
 function setupAlertListener(userUid) {
     const alertsRef = collection(db, "alerts");
@@ -69,7 +68,6 @@ function injectAlertBanner(motif, alertId) {
     const banner = document.createElement("div");
     banner.id = "vindora-alert-banner";
 
-    // Style différent selon si c'est une bannière ou un bloc intégré
     const isInline = !!container;
     const background = "#FFF7ED";
     const border = "2px solid #F59E0B";
@@ -100,13 +98,22 @@ function injectAlertBanner(motif, alertId) {
         document.body.prepend(banner);
     }
 
-    document.getElementById("close-alert-btn").onclick = async () => {
-        try {
-            await updateDoc(doc(db, "alerts", alertId), { lu: true });
-            banner.remove();
-            if (isInline && container.children.length === 0) container.style.display = "none";
-        } catch (e) { console.error("Erreur lecture alerte :", e); }
-    };
+    // GESTION DU CLIC OK (Correction : Doit être à l'intérieur de la fonction injectAlertBanner)
+    const btn = banner.querySelector("#close-alert-btn");
+    if (btn) {
+        btn.onclick = async () => {
+            btn.disabled = true;
+            btn.textContent = "...";
+            try {
+                await updateDoc(doc(db, "alerts", alertId), { lu: true });
+                banner.remove();
+                if (isInline && container.children.length === 0) container.style.display = "none";
+            } catch (e) { 
+                console.error("Erreur lecture alerte :", e); 
+                banner.remove(); 
+            }
+        };
+    }
 }
 
 onAuthStateChanged(auth, async (user) => {
@@ -121,39 +128,23 @@ onAuthStateChanged(auth, async (user) => {
 
             if (docSnap.exists()) {
                 const userData = docSnap.data();
-                window.currentUser = {
-                    uid: user.uid,
-                    ...userData
-                };
-
-                // Hydratation UI : Initiales, Nom complet et formulaire
+                window.currentUser = { uid: user.uid, ...userData };
                 updateUIProfile(userData);
-
-                // Activer l'écoute des notifications et alertes en temps réel
                 setupNotificationListener(user.uid);
                 setupAlertListener(user.uid);
 
-                // Règles de redirection et de sécurité (Session de Garde)
                 if (isPublicPage) {
-                    // S'il est sur index.html ou login mais qu'il est connecté, on l'envoie sur sa page
                     window.location.href = userData.role === 'admin' ? 'admin.html' : 'home.html';
                 } else if (isAdminPage && userData.role !== 'admin') {
-                    // Sécurité : Un utilisateur normal tente d'accéder à l'Admin panel !
                     sessionStorage.setItem("authError", "Accès refusé. Réservé aux administrateurs.");
                     window.location.href = "home.html";
                 }
-
-            } else {
-                console.error("Erreur de session: Aucun profil utilisateur trouvé dans Firestore.");
             }
-        } catch (error) {
-            console.error("Erreur Firestore session:", error);
-        }
+        } catch (error) { console.error("Erreur Firestore session:", error); }
     } else {
         window.currentUser = null;
-        // Non connecté
         if (!isPublicPage) {
-            sessionStorage.setItem("authError", "Veuillez vous vous connecter pour accéder à cette page.");
+            sessionStorage.setItem("authError", "Veuillez vous vous connecter.");
             window.location.href = "index.html";
         }
     }
@@ -168,67 +159,35 @@ function updateUIProfile(userData) {
         ? (userData.prenom[0] + userData.nom[0]).toUpperCase()
         : "UV";
 
-    // Mettre à jour les éléments contenant les initiales
-    const initialsElements = document.querySelectorAll(".avatar, .admin-av, .profile-avatar, #user-initials");
-    initialsElements.forEach(el => {
+    document.querySelectorAll(".avatar, .admin-av, .profile-avatar, #user-initials").forEach(el => {
         el.textContent = initials;
     });
 
-    // Mettre à jour les éléments de nom complet
-    const fullNameElements = document.querySelectorAll("#user-fullname");
-    fullNameElements.forEach(el => {
+    document.querySelectorAll("#user-fullname").forEach(el => {
         el.textContent = userData.prenom + " " + userData.nom;
     });
 
-    // Fill profile form if on profile.html
     const editNom = document.getElementById("edit-nom");
     if (editNom) {
         editNom.value = userData.nom || "";
         document.getElementById("edit-prenom").value = userData.prenom || "";
         document.getElementById("edit-email").value = userData.email || "";
-
         const telEl = document.getElementById("edit-phone");
         if (telEl) telEl.value = userData.phone || "";
-
         const cityEl = document.getElementById("edit-city");
         if (cityEl && userData.city) cityEl.value = userData.city;
-
-        // Populate mapped password if it exists in db
         const oldPassEl = document.getElementById("old-password");
         if (oldPassEl && userData.password) oldPassEl.value = userData.password;
-
+        
         const userProfileName = document.getElementById("user-profile-name");
-        if (userProfileName) {
-            userProfileName.textContent = `${userData.prenom} ${userData.nom}`;
-        }
-
+        if (userProfileName) userProfileName.textContent = `${userData.prenom} ${userData.nom}`;
+        
         const badgeRole = document.querySelector(".badge-role");
-        if (badgeRole && userData.role) {
-            badgeRole.textContent = userData.role === 'admin' ? 'Administrateur' : 'Utilisateur';
-        }
-
+        if (badgeRole && userData.role) badgeRole.textContent = userData.role === 'admin' ? 'Administrateur' : 'Utilisateur';
+        
         const profileEmail = document.querySelector(".profile-email");
         if (profileEmail && userData.email) {
             profileEmail.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="opacity:0.5"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg> ${userData.email}`;
         }
     }
-
 }
-// Recherche du bouton directement dans l'élément banner
-const btn = banner.querySelector("#close-alert-btn");
-if (btn) {
-    btn.onclick = async () => {
-        btn.disabled = true;
-        btn.textContent = "...";
-        try {
-            // Mise à jour de Firestore
-            await updateDoc(doc(db, "alerts", alertId), { lu: true });
-            // Suppression visuelle immédiate
-            banner.remove();
-        } catch (e) {
-            console.error("Erreur lecture alerte :", e);
-            banner.remove(); // On l'enlève quand même en cas d'erreur locale
-        }
-    };
-}
-
