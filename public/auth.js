@@ -6,7 +6,10 @@ import {
     updatePassword, 
     reauthenticateWithCredential, 
     EmailAuthProvider,
-    deleteUser 
+    deleteUser,
+    sendPasswordResetEmail,
+    GoogleAuthProvider,
+    signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 import { doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
@@ -102,6 +105,86 @@ export async function login(email, password, selectedRole = 'user') {
 }
 
 /**
+ * MOT DE PASSE OUBLIÉ
+ */
+export async function forgotPassword(email) {
+    if (!email) {
+        notify("Veuillez saisir votre adresse email dans le champ ci-dessus.");
+        return;
+    }
+    try {
+        await sendPasswordResetEmail(auth, email);
+        notify("Email de réinitialisation envoyé ! Vérifiez votre boîte de réception.");
+    } catch (error) {
+        console.error("Erreur ForgotPassword:", error);
+        if (error.code === 'auth/user-not-found') {
+            notify("Aucun utilisateur trouvé avec cet email.");
+        } else {
+            notify("Erreur lors de l'envoi de l'email.");
+        }
+    }
+}
+
+/**
+ * CONNEXION AVEC GOOGLE
+ */
+export async function loginWithGoogle(selectedRole = 'user') {
+    const provider = new GoogleAuthProvider();
+    try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+
+        // On vérifie si le profil Firestore existe
+        const userDocRef = doc(db, "users", user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        let finalRole = selectedRole;
+
+        if (!userDocSnap.exists()) {
+            // Nouvel utilisateur via Google -> On crée le profil par défaut
+            const names = (user.displayName || "").split(" ");
+            const prenom = names[0] || "User";
+            const nom = names.length > 1 ? names.slice(1).join(" ") : "Google";
+
+            await setDoc(userDocRef, {
+                uid: user.uid,
+                email: user.email,
+                prenom: prenom,
+                nom: nom,
+                role: 'user', // Les nouveaux via Google sont toujours 'user' par sécurité
+                createdAt: serverTimestamp()
+            });
+            finalRole = 'user';
+        } else {
+            // Utilisateur existant -> On respecte son rôle actuel
+            const userData = userDocSnap.data();
+            finalRole = userData.role || 'user';
+
+            // Vérification de cohérence comme pour le login classique
+            if (selectedRole === 'admin' && finalRole !== 'admin') {
+                await signOut(auth);
+                notify("Accès refusé. Ce compte n'a pas les droits Administrateur.");
+                return;
+            }
+            if (selectedRole === 'user' && finalRole === 'admin') {
+                await signOut(auth);
+                notify("Ce compte est un compte Administrateur. Veuillez utiliser le mode Administrateur.");
+                return;
+            }
+        }
+
+        notify("Connexion Google réussie !");
+        redirectByRole(finalRole);
+
+    } catch (error) {
+        console.error("Erreur Google Login:", error);
+        if (error.code !== 'auth/popup-closed-by-user') {
+            notify("La connexion Google a échoué.");
+        }
+    }
+}
+
+/**
  * LOGOUT
  */
 export async function logout() {
@@ -178,6 +261,8 @@ window.login = (e, p, role) => login(e, p, role);
 window.signUp = (e, p, d) => signUp(e, p, d);
 window.logout = () => logout();
 window.realDeleteAccount = deleteMyAccount;
+window.forgotPassword = (email) => forgotPassword(email);
+window.loginWithGoogle = (role) => loginWithGoogle(role);
 
 /**
  * PROFILE UPDATES
