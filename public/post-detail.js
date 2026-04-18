@@ -102,6 +102,16 @@ function injectPostData(data) {
                 icon.style = "position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:40px; opacity:0.3; pointer-events:none;";
                 imgEl.appendChild(icon);
             }
+    // Author fallback (immediate)
+    const authorNameEl = document.getElementById("detail-author-name");
+    const authorAvEl = document.getElementById("detail-author-av");
+    if (authorNameEl) {
+        const name = ((data.authorPrenom || "") + " " + (data.authorNom || "")).trim() || "Utilisateur Vindora";
+        authorNameEl.textContent = name;
+
+        if (authorAvEl && (data.authorPrenom || data.authorNom)) {
+            const initials = ((data.authorPrenom ? data.authorPrenom[0] : "") + (data.authorNom ? data.authorNom[0] : "")).toUpperCase();
+            if (initials) authorAvEl.textContent = initials;
         }
     }
 
