@@ -91,10 +91,8 @@ function injectPostData(data) {
             imgEl.style.backgroundImage = `url('${data.imageUrl}')`;
             imgEl.style.backgroundColor = "transparent";
         } else {
-            // Ne PAS faire innerHTML ici car cela supprime les boutons (Like/Share)
             imgEl.style.backgroundColor = "var(--bg)";
             imgEl.style.backgroundImage = "none";
-            // On peut ajouter une icône via un élément dédié s'il n'existe pas déjà
             if (!imgEl.querySelector('.placeholder-icon')) {
                 const icon = document.createElement('div');
                 icon.className = 'placeholder-icon';
@@ -102,16 +100,32 @@ function injectPostData(data) {
                 icon.style = "position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:40px; opacity:0.3; pointer-events:none;";
                 imgEl.appendChild(icon);
             }
-    // Author fallback (immediate)
+        }
+    }
+
+    // AFFECTATION DU NOM DE L'AUTEUR (Fallback immédiat)
     const authorNameEl = document.getElementById("detail-author-name");
     const authorAvEl = document.getElementById("detail-author-av");
+    
+    // On essaie d'utiliser les champs stockés directements dans le post
+    const prenom = data.authorPrenom || "";
+    const nom = data.authorNom || "";
+    
     if (authorNameEl) {
-        const name = ((data.authorPrenom || "") + " " + (data.authorNom || "")).trim() || "Utilisateur Vindora";
-        authorNameEl.textContent = name;
-
-        if (authorAvEl && (data.authorPrenom || data.authorNom)) {
-            const initials = ((data.authorPrenom ? data.authorPrenom[0] : "") + (data.authorNom ? data.authorNom[0] : "")).toUpperCase();
-            if (initials) authorAvEl.textContent = initials;
+        if (prenom || nom) {
+            authorNameEl.textContent = `${prenom} ${nom}`.trim();
+        } else if (data.authorName) {
+            authorNameEl.textContent = data.authorName;
+        } else {
+            authorNameEl.textContent = "Utilisateur Vindora";
+        }
+    }
+    
+    if (authorAvEl) {
+        if (prenom && nom) {
+            authorAvEl.textContent = (prenom[0] + nom[0]).toUpperCase();
+        } else if (prenom) {
+            authorAvEl.textContent = prenom[0].toUpperCase();
         }
     }
 
@@ -128,10 +142,15 @@ async function loadAuthorProfile(uid) {
         if (userSnap.exists()) {
             currentAuthorData = userSnap.data();
             const fullName = `${currentAuthorData.prenom} ${currentAuthorData.nom}`;
-            document.getElementById("detail-author-name").textContent = fullName;
             
-            const initials = (currentAuthorData.prenom.charAt(0) + currentAuthorData.nom.charAt(0)).toUpperCase();
-            document.getElementById("detail-author-av").textContent = initials;
+            const nameEl = document.getElementById("detail-author-name");
+            if (nameEl) nameEl.textContent = fullName;
+            
+            const avEl = document.getElementById("detail-author-av");
+            if (avEl && currentAuthorData.prenom && currentAuthorData.nom) {
+                const initials = (currentAuthorData.prenom.charAt(0) + currentAuthorData.nom.charAt(0)).toUpperCase();
+                avEl.textContent = initials;
+            }
         }
     } catch (error) {
         console.error("Error loading author profile:", error);
