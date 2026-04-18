@@ -1,5 +1,5 @@
 import { auth, db } from "./firebase-config.js";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 // Fonction d'alerte professionnelle utilisant votre toast
@@ -47,7 +47,7 @@ export async function register(email, password, nom, prenom, phone, city, role =
     }
 }
 
-export async function login(email, password) {
+export async function login(email, password, selectedRole = 'user') {
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
@@ -57,9 +57,25 @@ export async function login(email, password) {
         
         if (docSnap.exists()) {
             const userData = docSnap.data();
-            const role = userData.role || 'user';
+            const actualRole = userData.role || 'user';
             
-            if (role === 'admin') {
+            console.log("Login check:", { selectedRole, actualRole });
+
+            // Task 2: Post-Login Verification Logic (STRICT ENFORCEMENT)
+            if (selectedRole === 'user' && actualRole === 'admin') {
+                await signOut(auth);
+                notify("Ce compte est un compte Administrateur. Veuillez utiliser le bouton Administrateur pour vous connecter.");
+                return;
+            }
+
+            if (selectedRole === 'admin' && actualRole === 'user') {
+                await signOut(auth);
+                notify("Accès refusé. Ce bouton est réservé aux comptes Administrateurs.");
+                return;
+            }
+
+            // SUCCESS: Roles match
+            if (actualRole === 'admin') {
                 notify("Bienvenue " + userData.prenom + " ! Redirection en cours...");
                 setTimeout(() => {
                     window.location.href = "admin.html";
@@ -72,6 +88,7 @@ export async function login(email, password) {
             }
         } else {
             notify("Utilisateur introuvable dans la base !");
+            await signOut(auth);
         }
     } catch (error) {
         console.error("Login Error:", error);
@@ -113,6 +130,8 @@ window.realRegister = function() {
 window.realLogin = function() {
     const email = document.getElementById("login-email").value;
     const password = document.getElementById("login-password").value;
+    // Capturer le rôle sélectionné AU MOMENT du clic
+    const selectedRole = window.currentLoginRole || 'user';
 
     if (!email || !password) {
         notify("Veuillez remplir votre email et mot de passe.");
@@ -120,7 +139,7 @@ window.realLogin = function() {
     }
 
     notify("Connexion en cours...");
-    login(email, password);
+    login(email, password, selectedRole);
 };
 
 export async function updateUserProfile(uid, newData) {
