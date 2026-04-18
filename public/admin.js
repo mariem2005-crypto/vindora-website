@@ -1,9 +1,9 @@
 import { auth, db } from "./firebase-config.js";
 import { 
     collection, getDocs, doc, deleteDoc, updateDoc, addDoc, 
-    onSnapshot, query, where, orderBy, serverTimestamp 
+    onSnapshot, query, where, orderBy, serverTimestamp, getCountFromServer 
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 import { populateCitySelect } from "./locationService.js";
 
 // Global data store
@@ -217,7 +217,7 @@ function applyDomFilters() {
         if (fStatus === 'active') matchStatus = status === 'active';
         if (fStatus === 'flagged') matchStatus = (reports > 0 || status === 'blocked' || status === 'sous_surveillance');
         if (fStatus === 'deleted') matchStatus = status === 'deleted';
-        if (fStatus === 'pending') matchStatus = status === 'en_attente';
+        if (fStatus === 'pending') matchStatus = status === 'pending'; // Updated to match user request
 
         // Condition Ville
         let matchCity = fCity === 'all' || city === fCity;
@@ -254,7 +254,7 @@ function renderAllTableRows() {
         let statusText = "Active";
         let statusClass = "badge-active";
         const st = data.status || 'active';
-        if (st === 'en_attente') { statusText = "En attente"; statusClass = "badge-flagged"; }
+        if (st === 'pending' || st === 'en_attente') { statusText = "En attente"; statusClass = "badge-flagged"; }
         if (st === 'deleted') { statusText = "Supprimé"; statusClass = "badge-removed"; }
         if (st === 'blocked') { statusText = "Signalé"; statusClass = "badge-flagged"; }
         if (st === 'sous_surveillance') { statusText = "Surveillé"; statusClass = "badge-flagged"; }
@@ -283,16 +283,16 @@ function renderAllTableRows() {
             <td><span class="badge ${statusClass}">${statusText}</span></td>
             <td>
                 <div class="actions-cell">
-                    ${st === 'en_attente' ? `<button class="act-btn" onclick="adminApprovePost('${data.id}')">Approuver</button>` : ''}
+                    ${(st === 'en_attente' || st === 'pending') ? `<button class="act-btn" onclick="adminApprovePost('${data.id}')">Approuver</button>` : ''}
                     ${((data.reportsCount || 0) > 0 || st === 'blocked') ? `
                         <button class="act-btn warn-btn" onclick="ignorerSignalements('${data.id}')">Ignorer</button>
                     ` : ''}
                     
-                    ${(st === 'active' || st === 'en_attente' || st === 'blocked' || st === 'sous_surveillance') ? `
+                    ${(st === 'active' || st === 'en_attente' || st === 'pending' || st === 'blocked' || st === 'sous_surveillance') ? `
                         <button class="act-btn" style="color:var(--warn)" onclick="openWarnModal('${data.authorUid}', '${data.id}')">Avertir</button>
                     ` : ''}
 
-                    ${(st === 'active' || st === 'en_attente') ? `<button class="act-btn" onclick="adminToggleSignal('${data.id}', '${st}')">Signaler</button>` : ''}
+                    ${(st === 'active' || st === 'en_attente' || st === 'pending') ? `<button class="act-btn" onclick="adminToggleSignal('${data.id}', '${st}')">Signaler</button>` : ''}
                     ${st === 'blocked' ? `<button class="act-btn" onclick="adminToggleSignal('${data.id}', 'blocked')">Activer</button>` : ''}
                     
                     <button class="act-btn danger" onclick="adminDeletePost('${data.id}')">Supprimer</button>
@@ -305,19 +305,56 @@ function renderAllTableRows() {
     applyDomFilters();
 }
 
-function updateAdminStats() {
-    const pending = allPosts.filter(p => (p.status || 'active') === 'en_attente').length;
-    const flagged = allPosts.filter(p => (p.reportsCount || 0) > 0 || p.status === 'blocked').length;
-
+/**
+ * TASK: DYNAMIC DASHBOARD COUNTERS (OPTIMIZED)
+ * Utilise getCountFromServer() pour économiser les ressources.
+ */
+async function updateAdminStats() {
+    const tEl = document.getElementById("admin-stat-total");
+    const fEl = document.getElementById("admin-stat-flagged");
+    const pEl = document.getElementById("admin-stat-pending");
     const badgePending = document.getElementById("badge-pending-count");
-    if (badgePending) {
-        badgePending.textContent = pending;
-        badgePending.style.display = pending > 0 ? 'block' : 'none';
-    }
 
-    const tEl = document.getElementById("admin-stat-total"); if(tEl) tEl.textContent = allPosts.length;
-    const pEl = document.getElementById("admin-stat-pending"); if(pEl) pEl.textContent = pending;
-    const fEl = document.getElementById("admin-stat-flagged"); if(fEl) fEl.textContent = flagged;
+    if (tEl) tEl.textContent = "...";
+    if (fEl) fEl.textContent = "...";
+    if (pEl) pEl.textContent = "...";
+
+    try {
+        const postsRef = collection(db, "posts");
+
+        // 1. Total Publications
+        const totalSnap = await getCountFromServer(postsRef);
+        const totalCount = totalSnap.data().count;
+
+        // 2. Signalées (reportsCount > 0)
+        const flaggedQuery = query(postsRef, where("reportsCount", ">", 0));
+        const flaggedSnap = await getCountFromServer(flaggedQuery);
+        const flaggedCount = flaggedSnap.data().count;
+
+        // 3. En attente (status == "pending")
+        const pendingQuery = query(postsRef, where("status", "==", "pending"));
+        const pendingSnap = await getCountFromServer(pendingQuery);
+        const pendingCount = pendingSnap.data().count;
+
+        if (tEl) tEl.textContent = totalCount;
+        if (fEl) fEl.textContent = flaggedCount;
+        if (pEl) pEl.textContent = pendingCount;
+
+        if (badgePending) {
+            badgePending.textContent = pendingCount;
+            badgePending.style.display = pendingCount > 0 ? 'block' : 'none';
+        }
+
+    } catch (error) {
+        console.error("Dashboard Stats Error:", error);
+        if (tEl) tEl.textContent = "0";
+        if (fEl) fEl.textContent = "0";
+        if (pEl) pEl.textContent = "0";
+        
+        if (error.code === 'failed-precondition') {
+            console.warn("⚠️ Index composite manquant. Cliquez sur le lien bleu ci-dessus.");
+        }
+    }
 }
 
 function renderUsers(users) {

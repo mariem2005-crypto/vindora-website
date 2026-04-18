@@ -1,7 +1,7 @@
-
-
 import { auth, db } from "./firebase-config.js";
-import { collection, query, where, getDocs, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { 
+    collection, query, where, getDocs, doc, deleteDoc, updateDoc, getCountFromServer 
+} from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 import { populateCitySelect } from "./locationService.js";
 
@@ -87,7 +87,7 @@ function renderPost(documentSnapshot) {
     const badgeText = internalPostType === "perdu" ? "Perdu" : "Trouvé";
 
     let resolutionBadge = "<span class='badge badge-active'>Active</span>";
-    if (postStatus === "en_attente") {
+    if (postStatus === "en_attente" || postStatus === "pending") {
         resolutionBadge = "<span class='badge badge-flagged'>En attente</span>";
     } else if (postStatus === "blocked") {
         resolutionBadge = "<span class='badge badge-flagged'>Signalé</span>";
@@ -112,7 +112,7 @@ function renderPost(documentSnapshot) {
     const safeDesc = description.replace(/['"\\\n\r]/g, " ");
     const safeCity = city.replace(/['"\\\n\r]/g, " ");
 
-    // CONCATÉNATION STRICte (Sans Backticks). Ajout des data-attributes stricts
+    // CONCATÉNATION STRICte (Sans Backticks).
     let html = "";
     html += "<div class='post-card dom-post' data-internal-type='" + internalPostType + "' data-status='" + postStatus + "' data-category='" + category + "' data-city='" + safeCity + "' onclick='window.location.href=\"post-detail.html?id=" + docId + "\"'>";
     html +=   "<div class='post-thumb' style='background: var(--bg); padding: 0; overflow: hidden;'>";
@@ -161,14 +161,13 @@ function renderPost(documentSnapshot) {
 // ====== LOGIQUE PRINCIPALE ======
 async function loadMyPublications() {
     const user = auth.currentUser;
-    if (!user) {
-        return;
-    }
+    if (!user) return;
+
+    loadUserStats(user.uid);
 
     try {
         const postsRef = collection(db, "posts");
         const q = query(postsRef, where("authorUid", "==", user.uid));
-        
         const querySnapshot = await getDocs(q);
 
         allMyPosts = [];
@@ -176,83 +175,69 @@ async function loadMyPublications() {
             allMyPosts.push(documentSnapshot);
         });
 
-        // Calcul initial pour les bulles des onglets sur l'ensemble
-        updateTabsCountersFromSource(allMyPosts);
-
-        // Appliquer directement les filtres, ce qui génèrera le DOM
         window.applyFilters();
-
     } catch (error) {
         console.error("Erreur lors de la récupération des publications:", error);
     }
 }
 
-// Update Top Boxes
-function updateCounters(t, a, r) {
-    const elTotal = document.getElementById("count-total");
-    if (elTotal) {
-        elTotal.textContent = t;
-        const elActives = document.getElementById("count-actives");
-        if (elActives) elActives.textContent = a;
-        const elResolues = document.getElementById("count-resolues");
-        if (elResolues) elResolues.textContent = r;
-    }
-}
-
-// Update Tab Bubbles (TASK 1 & TASK 2)
-function updateTabsCountersFromSource(sourceArray) {
-    let total = sourceArray.length;
-    let countLost = 0;
-    let countFound = 0;
-    let resolues = 0;
-
-    sourceArray.forEach(docSnap => {
-        const data = docSnap.data();
-        let pt = (data.postType || "").toLowerCase();
-        if (pt === "lost" || pt === "perdu") countLost++;
-        else countFound++;
-        
-        const postStatus = (data.status || "active").toLowerCase(); 
-        if (postStatus.includes("resolu") || postStatus === "resolved") resolues++;
-    });
-
+async function loadUserStats(uid) {
     const elAll = document.getElementById("count-all");
     const elLost = document.getElementById("count-lost");
     const elFound = document.getElementById("count-found");
     const elResolved = document.getElementById("count-resolved");
 
-    if (elAll) elAll.innerText = "Toutes (" + total + ")";
-    if (elLost) elLost.innerText = "Perdues (" + countLost + ")";
-    if (elFound) elFound.innerText = "Trouvées (" + countFound + ")";
-    if (elResolved) elResolved.innerText = "Résolues (" + resolues + ")";
+    const postsRef = collection(db, "posts");
+
+    try {
+        const [totalS, lostS, foundS, resS] = await Promise.all([
+            getCountFromServer(query(postsRef, where("authorUid", "==", uid))),
+            getCountFromServer(query(postsRef, where("authorUid", "==", uid), where("postType", "in", ["lost", "perdu"]))),
+            getCountFromServer(query(postsRef, where("authorUid", "==", uid), where("postType", "in", ["found", "trouve"]))),
+            getCountFromServer(query(postsRef, where("authorUid", "==", uid), where("status", "in", ["resolu", "resolved"])))
+        ]);
+
+        if (elAll) elAll.innerText = "Toutes (" + totalS.data().count + ")";
+        if (elLost) elLost.innerText = "Perdues (" + lostS.data().count + ")";
+        if (elFound) elFound.innerText = "Trouvées (" + foundS.data().count + ")";
+        if (elResolved) elResolved.innerText = "Résolues (" + resS.data().count + ")";
+
+        const actives = totalS.data().count - resS.data().count;
+        updateCounters(totalS.data().count, actives, resS.data().count);
+
+    } catch (error) {
+        console.error("User Stats Error:", error);
+        if (error.code === 'failed-precondition') {
+            console.warn("⚠️ Index composite manquant pour les stats utilisateur.");
+        }
+    }
 }
 
-// ====== TASK 3: REAL-TIME DOM FILTERING ======
+function updateCounters(t, a, r) {
+    const elTotal = document.getElementById("count-total");
+    const elActives = document.getElementById("count-actives");
+    const elResolues = document.getElementById("count-resolues");
+
+    if (elTotal) elTotal.textContent = t;
+    if (elActives) elActives.textContent = a;
+    if (elResolues) elResolues.textContent = r;
+}
+
 window.applyFilters = function() {
     const elCat = document.getElementById("filter-category");
     const elCity = document.getElementById("filter-city");
-    // Fallback to "filter-object" if the ID was updated
     const elType = document.getElementById("filter-object") || document.getElementById("filter-type");
     
     const selectedCategory = elCat ? elCat.value : "Tous";
     const selectedCity = elCity ? elCity.value : "Tous";
     const selectedObject = elType ? elType.value : "Tous";
 
-
-    // Filter by dropdowns and tabs via .filter()
     const filteredPosts = allMyPosts.filter(docSnap => {
         const data = docSnap.data();
-        
-        // Category check
         const matchesCategory = (selectedCategory === "Tous" || selectedCategory === "all" || data.category === selectedCategory);
-        
-        // City check
         const matchesCity = (selectedCity === "Tous" || selectedCity === "all" || data.city === selectedCity);
-        
-        // Object Type check
         const matchesObject = (selectedObject === "Tous" || selectedObject === "all" || data.objType === selectedObject);
 
-        // Tab Filter
         let tabMatch = true;
         const pt = (data.postType || "").toLowerCase();
         const internType = (pt === "lost" || pt === "perdu") ? "perdu" : "trouve";
@@ -265,16 +250,14 @@ window.applyFilters = function() {
         return matchesCategory && matchesCity && matchesObject && tabMatch;
     });
 
-    // Rerender UI
     const container = document.getElementById("posts-wrapper");
     if (container) {
         container.innerHTML = "";
         
+        const noResultMsg = document.getElementById("no-result-msg");
         if (filteredPosts.length === 0 && allMyPosts.length > 0) {
-            const noResultMsg = document.getElementById("no-result-msg");
             if (noResultMsg) noResultMsg.style.display = "block";
         } else {
-            const noResultMsg = document.getElementById("no-result-msg");
             if (noResultMsg) noResultMsg.style.display = "none";
         }
         
@@ -287,19 +270,6 @@ window.applyFilters = function() {
             });
         }
     }
-
-    // Update Totals Counter
-    let actives = 0;
-    let resolues = 0;
-    filteredPosts.forEach(docSnap => {
-        const pStatus = (docSnap.data().status || "active").toLowerCase(); 
-        if (pStatus.includes("resolu") || pStatus === "resolved") resolues++;
-        else actives++;
-    });
-    
-    updateCounters(filteredPosts.length, actives, resolues);
-    // Refresh tab bubbles based on current filter results
-    updateTabsCountersFromSource(filteredPosts);
 };
 
 window.filterPosts = function(btnElement, filterType) {
@@ -330,7 +300,6 @@ window.resetAllFilters = function() {
     }
 };
 
-// ON AUTH STATE CHANGED WRAPPER
 onAuthStateChanged(auth, function(user) {
     if (user) {
         loadMyPublications();
