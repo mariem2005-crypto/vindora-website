@@ -515,18 +515,43 @@
     admin.querySelector('svg').setAttribute('stroke', role === 'admin' ? '#2A6DD9' : '#6B6B9A');
   }
 
-  function handleLogin() {
-    showToast('Connexion réussie, redirection...');
-    setTimeout(() => {
-      window.location.href = currentLoginRole === 'admin' ? 'admin.html' : 'home.html';
-    }, 1500);
+  async function realLogin() {
+    const email = document.getElementById('login-email').value;
+    const pass = document.getElementById('login-password').value;
+    if (!email || !pass) {
+      showToast('Veuillez remplir tous les champs');
+      return;
+    }
+    // Appel de la fonction globale définie dans auth.js
+    if (window.login) {
+      await window.login(email, pass, window.currentLoginRole);
+    } else {
+      console.error("La fonction login n'est pas encore chargée.");
+    }
   }
 
-  function handleRegister() {
-    showToast('Compte créé avec succès !');
-    setTimeout(() => {
-      window.location.href = currentRole === 'admin' ? 'admin.html' : 'home.html';
-    }, 1500);
+  async function realRegister() {
+    const prenom = document.getElementById('reg-prenom').value;
+    const nom = document.getElementById('reg-nom').value;
+    const email = document.getElementById('reg-email').value;
+    const pass = document.getElementById('reg-password').value;
+    const confirm = document.getElementById('reg-pwd-confirm').value;
+    const role = window.currentRole;
+
+    if (!prenom || !nom || !email || !pass) {
+      showToast('Veuillez remplir tous les champs');
+      return;
+    }
+    if (pass !== confirm) {
+      showToast('Les mots de passe ne correspondent pas');
+      return;
+    }
+
+    if (window.signUp) {
+      await window.signUp(email, pass, { prenom, nom, role });
+    } else {
+      console.error("La fonction signUp n'est pas encore chargée.");
+    }
   }
 
   function showToast(msg) {
