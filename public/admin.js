@@ -215,9 +215,9 @@ function applyDomFilters() {
         // Condition Statut
         let matchStatus = fStatus === 'all';
         if (fStatus === 'active') matchStatus = status === 'active';
-        if (fStatus === 'flagged') matchStatus = (reports > 0 || status === 'blocked' || status === 'sous_surveillance');
-        if (fStatus === 'deleted') matchStatus = status === 'deleted';
-        if (fStatus === 'pending') matchStatus = status === 'pending'; // Updated to match user request
+        if (fStatus === 'flagged') matchStatus = status === 'flagged';
+        if (fStatus === 'deleted') matchStatus = status === 'deleted' || status === 'removed';
+        if (fStatus === 'pending') matchStatus = status === 'pending';
 
         // Condition Ville
         let matchCity = fCity === 'all' || city === fCity;

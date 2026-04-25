@@ -291,7 +291,7 @@
         </div>
       </div>
 
-      <div class="forgot"><a href="#" onclick="realForgotPassword(); return false;">Mot de passe oublié ?</a></div>
+      <div class="forgot"><a href="#" onclick="switchTab('forgot'); return false;">Mot de passe oublié ?</a></div>
 
       <button class="btn-submit" id="btn-login" onclick="realLogin()">Se connecter</button>
 
@@ -468,6 +468,31 @@
         Continuer avec Google
       </button>
     </div>
+
+    <!-- FORGOT PASSWORD -->
+    <div class="form" id="form-forgot">
+      <div class="form-title">Mot de passe oublié</div>
+      <div class="form-subtitle">Entrez votre email pour réinitialiser votre mot de passe</div>
+      
+      <div class="field">
+        <label>Adresse email</label>
+        <div class="input-wrap">
+          <span class="ico">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+            </svg>
+          </span>
+          <input type="email" id="forgot-email" placeholder="vous@email.com"/>
+        </div>
+      </div>
+      
+      <button class="btn-submit" onclick="realSubmitForgotPassword()">Envoyer le lien</button>
+      
+      <div class="forgot" style="text-align: center; margin-top: 20px;">
+        <a href="#" onclick="switchTab('login'); return false;">Retour à la connexion</a>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -490,6 +515,8 @@
     });
     document.getElementById('form-login').classList.toggle('active', tab === 'login');
     document.getElementById('form-register').classList.toggle('active', tab === 'register');
+    const formForgot = document.getElementById('form-forgot');
+    if (formForgot) formForgot.classList.toggle('active', tab === 'forgot');
   }
 
   window.currentRole = 'user';
@@ -532,6 +559,13 @@
 
   async function realForgotPassword() {
     const email = document.getElementById('login-email').value;
+    if (window.forgotPassword) {
+      await window.forgotPassword(email);
+    }
+  }
+
+  async function realSubmitForgotPassword() {
+    const email = document.getElementById('forgot-email').value;
     if (window.forgotPassword) {
       await window.forgotPassword(email);
     }
