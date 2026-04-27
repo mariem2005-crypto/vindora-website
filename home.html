@@ -1116,7 +1116,7 @@
         // Normalisation du statut (gère français et anglais)
         const typeRaw = (post.postType || post.type || '').toLowerCase();
         const normType = (typeRaw === 'perdu' || typeRaw === 'lost') ? 'lost' :
-          (typeRaw === 'trouvé' || typeRaw === 'found') ? 'found' : '';
+          (typeRaw === 'trouvé' || typeRaw === 'trouve' || typeRaw === 'found') ? 'found' : '';
 
         const matchStatut = (activeFilters.statut === 'all' || normType === activeFilters.statut);
         const matchCat = (activeFilters.categorie === 'all-cat' || post.category === activeFilters.categorie);
@@ -1135,7 +1135,7 @@
 
       allPostsData.forEach(p => {
         const type = (p.postType || p.type || '').toLowerCase();
-        const key = (type === 'perdu' || type === 'lost') ? 'lost' : (type === 'trouvé' || type === 'found') ? 'found' : '';
+        const key = (type === 'perdu' || type === 'lost') ? 'lost' : (type === 'trouvé' || type === 'trouve' || type === 'found') ? 'found' : '';
         if (key) counts.statut[key]++;
         if (p.category) counts.categorie[p.category] = (counts.categorie[p.category] || 0) + 1;
         if (p.city) counts.ville[p.city] = (counts.ville[p.city] || 0) + 1;
