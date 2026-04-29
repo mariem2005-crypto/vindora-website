@@ -591,29 +591,31 @@
     document.getElementById('char-count').textContent = val;
   }
 
-  const photos = [
-    `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3B3BDB" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="17" r="1" fill="#00C9A7" stroke="none"/><line x1="9" y1="6" x2="15" y2="6" stroke="#00C9A7"/></svg>`,
-    `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3B3BDB" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M1 21h22" stroke="#00C9A7" stroke-width="2"/></svg>`,
-    `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3B3BDB" stroke-width="1.8" stroke-linecap="round"><path d="M9 2h6a1 1 0 0 1 1 1v1H8V3a1 1 0 0 1 1-1z"/><rect x="4" y="6" width="16" height="15" rx="3"/><path d="M9 11h6" stroke="#00C9A7"/></svg>`,
-    `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3B3BDB" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="10" r="4"/><circle cx="8" cy="10" r="1.5" fill="#00C9A7" stroke="none"/><path d="M12 10h8M18 10v3"/></svg>`,
-    `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3B3BDB" stroke-width="1.8" stroke-linecap="round"><circle cx="7" cy="13" r="4"/><circle cx="17" cy="13" r="4"/><path d="M11 13h2" stroke="#00C9A7"/></svg>`
-  ];
-  let photoIndex = 0;
+  window.selectedFiles = [];
 
-  function handleFiles(input) {
+  window.handleFiles = function(input) {
     const previews = document.getElementById('previews');
-    if (photoIndex >= 5) return;
-    Array.from(input.files).slice(0, 5 - photoIndex).forEach(() => {
+    const newFiles = Array.from(input.files).slice(0, 5 - window.selectedFiles.length);
+    
+    newFiles.forEach((file) => {
+      window.selectedFiles.push(file);
+      const url = URL.createObjectURL(file);
       const div = document.createElement('div');
       div.className = 'photo-preview';
-      div.innerHTML = `${photos[photoIndex % photos.length]}<button class="photo-remove" onclick="this.parentElement.remove()">✕</button>`;
+      div.dataset.filename = file.name;
+      div.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;"><button class="photo-remove" onclick="removeFile(this)">✕</button>`;
       previews.appendChild(div);
-      photoIndex++;
     });
-  }
+    
+    input.value = '';
+  };
 
-  window.submitPost = async function() {
-  }
+  window.removeFile = function(btn) {
+    const div = btn.parentElement;
+    const fileName = div.dataset.filename;
+    window.selectedFiles = window.selectedFiles.filter(f => f.name !== fileName);
+    div.remove();
+  };
 
   function showToast(msg) {
     const t = document.getElementById('toast');
@@ -623,8 +625,9 @@
   }
 </script>
 <script type="module">
-  import { db } from "./firebase-config.js";
+  import { db, storage } from "./firebase-config.js";
   import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
   import { populateCitySelect } from "./locationService.js";
 
   // Initialisation dynamique
@@ -663,6 +666,26 @@
         btn.innerHTML = "Publication en cours...";
         btn.disabled = true;
 
+        let imageUrl = null;
+        let images = [];
+
+        // Upload images if any
+        if (window.selectedFiles && window.selectedFiles.length > 0) {
+            btn.innerHTML = "Upload des images...";
+            for (let i = 0; i < window.selectedFiles.length; i++) {
+                const file = window.selectedFiles[i];
+                const storageRef = ref(storage, `posts/${Date.now()}_${file.name}`);
+                await uploadBytes(storageRef, file);
+                const url = await getDownloadURL(storageRef);
+                images.push(url);
+            }
+            if (images.length > 0) {
+                imageUrl = images[0];
+            }
+        }
+
+        btn.innerHTML = "Sauvegarde...";
+
         await addDoc(collection(db, "posts"), {
             title: title,
             description: desc,
@@ -679,6 +702,8 @@
             status: "en_attente",
             reportsCount: 0,
             reportedBy: [],
+            imageUrl: imageUrl,
+            images: images,
             createdAt: serverTimestamp()
         });
 
