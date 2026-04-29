@@ -1070,7 +1070,7 @@
     // 1) État Globlal
     const postsRef = collection(db, "posts");
     let allPostsData = [];
-    const activeFilters = { statut: 'all', categorie: 'all-cat', ville: 'all-ville', query: '' };
+    const activeFilters = { statut: 'all', categorie: 'all-cat', type: 'all-type', ville: 'all-ville', query: '' };
     const CARDS_PER_PAGE = 6;
     let currentPage = 1;
 
@@ -1120,24 +1120,32 @@
 
         const matchStatut = (activeFilters.statut === 'all' || normType === activeFilters.statut);
         const matchCat = (activeFilters.categorie === 'all-cat' || post.category === activeFilters.categorie);
+        
+        const objT = post.objType || post.objectType;
+        const matchType = (activeFilters.type === 'all-type' || objT === activeFilters.type);
+
         const matchVille = (activeFilters.ville === 'all-ville' || post.city === activeFilters.ville);
         const matchSearch = !activeFilters.query ||
           (post.title || '').toLowerCase().includes(activeFilters.query) ||
           (post.content || post.description || '').toLowerCase().includes(activeFilters.query);
 
-        return matchStatut && matchCat && matchVille && matchSearch;
+        return matchStatut && matchCat && matchType && matchVille && matchSearch;
       });
     }
 
     // 4) Mise à jour des compteurs (Scan dynamique)
     function updateFilterCounts() {
-      const counts = { statut: { lost: 0, found: 0 }, categorie: {}, ville: {} };
+      const counts = { statut: { lost: 0, found: 0 }, categorie: {}, type: {}, ville: {} };
 
       allPostsData.forEach(p => {
         const type = (p.postType || p.type || '').toLowerCase();
         const key = (type === 'perdu' || type === 'lost') ? 'lost' : (type === 'trouvé' || type === 'trouve' || type === 'found') ? 'found' : '';
         if (key) counts.statut[key]++;
         if (p.category) counts.categorie[p.category] = (counts.categorie[p.category] || 0) + 1;
+        
+        const objT = p.objType || p.objectType;
+        if (objT) counts.type[objT] = (counts.type[objT] || 0) + 1;
+
         if (p.city) counts.ville[p.city] = (counts.ville[p.city] || 0) + 1;
       });
 
@@ -1160,6 +1168,29 @@
 
     window.searchCards = function () {
       activeFilters.query = document.getElementById('search-input').value.toLowerCase().trim();
+      refreshUI();
+    };
+
+    window.resetFilters = function() {
+      activeFilters.statut = 'all';
+      activeFilters.categorie = 'all-cat';
+      activeFilters.type = 'all-type';
+      activeFilters.ville = 'all-ville';
+      activeFilters.query = '';
+      
+      const searchInput = document.getElementById('search-input');
+      if (searchInput) searchInput.value = '';
+      
+      document.querySelectorAll('.filter-opt').forEach(o => {
+        const g = o.dataset.filter;
+        if (g) {
+          o.classList.remove('active');
+          if (o.dataset.value.startsWith('all')) {
+            o.classList.add('active');
+          }
+        }
+      });
+      currentPage = 1;
       refreshUI();
     };
 
