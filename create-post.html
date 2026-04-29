@@ -711,6 +711,13 @@
         setTimeout(() => window.location.href = 'my-posts.html', 1800);
     } catch (e) {
         console.error("Erreur d'ajout de post: ", e);
+        if (e.code === 'storage/unauthorized') {
+            alert("Erreur de permission : Vous n'êtes pas autorisé à uploader des fichiers. Veuillez vérifier les 'Rules' de votre Firebase Storage.");
+        } else if (e.code === 'storage/unknown') {
+            alert("Erreur inconnue de stockage. Avez-vous bien activé Firebase Storage dans la console Firebase ?");
+        } else {
+            alert("Erreur lors de la publication : " + (e.message || "Erreur inconnue"));
+        }
         showToast("Erreur lors de la publication.");
         document.querySelector(".btn-submit").disabled = false;
         document.querySelector(".btn-submit").innerHTML = `
