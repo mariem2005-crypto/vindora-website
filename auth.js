@@ -55,7 +55,15 @@ export async function signUp(email, password, userData) {
         redirectByRole(userData.role);
     } catch (error) {
         console.error("Erreur Inscription:", error);
-        notify("Erreur lors de la création du compte.");
+        if (error.code === 'auth/email-already-in-use') {
+            notify("Cette adresse email est déjà associée à un compte.");
+        } else if (error.code === 'auth/weak-password') {
+            notify("Le mot de passe est trop faible (6 caractères minimum).");
+        } else if (error.code === 'auth/invalid-email') {
+            notify("L'adresse email est invalide.");
+        } else {
+            notify("Erreur lors de la création du compte.");
+        }
     }
 }
 
